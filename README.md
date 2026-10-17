@@ -25,11 +25,11 @@ O problema não é apenas somar arquivos: há cadastros incompletos, contratos a
 
 Não é necessário instalar Node.js, banco de dados externo ou ferramentas de build do front. A interface usa HTML, CSS e JavaScript; o estado local usa SQLite.
 
-Os exemplos usam **PowerShell (Windows)**, executados na raiz do repositório. No **macOS/Linux**, use o equivalente em bash/zsh da tabela abaixo; os comandos `python -m tarvo ...` e seus argumentos são idênticos.
+Cada comando aparece em duas versões, **Windows (PowerShell)** e **macOS / Linux (bash, zsh)**; use apenas a do seu sistema, sempre na raiz do repositório. A tabela abaixo resume as diferenças; os comandos `python -m tarvo ...` e seus argumentos são idênticos.
 
 | Ação | Windows (PowerShell) | macOS / Linux (bash, zsh) |
 |---|---|---|
-| Criar o ambiente | `python -m venv .venv` | `python3 -m venv .venv` |
+| Criar o ambiente | `python -m venv .venv` | `python3.13 -m venv .venv` (ver nota abaixo) |
 | Python do ambiente | `.\.venv\Scripts\python.exe` | `.venv/bin/python` |
 | Instalar | `.\.venv\Scripts\python.exe -m pip install -e ".[dev]"` | `.venv/bin/python -m pip install -e ".[dev]"` |
 | Copiar o `.env` | `Copy-Item .env.example .env` | `cp .env.example .env` |
@@ -37,16 +37,20 @@ Os exemplos usam **PowerShell (Windows)**, executados na raiz do repositório. N
 | Remover variável | `Remove-Item Env:TARVO_SEM_IA` | `unset TARVO_SEM_IA` |
 | Caminhos | `.\dados`, `.\saida` | `./dados`, `./saida` |
 
+> **macOS:** o `python3` do sistema (Command Line Tools) é o 3.9, abaixo do mínimo exigido (3.11), e seu `pip` antigo falha com `File "setup.py" or "setup.cfg" not found ... editable mode`. Instale uma versão recente (`brew install python@3.13`) e crie o ambiente com ela (`python3.13`, ou `python3.12`/`python3.11`). Se já criou o `.venv` com o Python 3.9, apague-o (`rm -rf .venv`) e crie de novo. Confira com `.venv/bin/python --version`.
+
 Exemplo completo no macOS/Linux, sem chamadas de IA:
 
 ```bash
 git clone https://github.com/PriscilaFalcao/barte-challenge-casa-barton.git && cd barte-challenge-casa-barton
-python3 -m venv .venv && .venv/bin/python -m pip install -e ".[dev]"
+python3.13 -m venv .venv && .venv/bin/python -m pip install -e ".[dev]"
 TARVO_SEM_IA=1 .venv/bin/python -m tarvo fechar --mes 2026-09 --dados ./dados --saida ./saida --sem-estado
 .venv/bin/python -m tarvo web        # interface em http://127.0.0.1:8000
 ```
 
 ## 2. Instalar do zero
+
+**Windows (PowerShell)**
 
 ```powershell
 git clone https://github.com/PriscilaFalcao/barte-challenge-casa-barton.git
@@ -55,7 +59,16 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
 ```
 
-Os comandos usam diretamente o Python do ambiente virtual, sem precisar ativá-lo ou alterar a política de execução do PowerShell. Se `python` não estiver disponível, use `py -3` para criar o ambiente virtual.
+**macOS / Linux (bash, zsh)**
+
+```bash
+git clone https://github.com/PriscilaFalcao/barte-challenge-casa-barton.git
+cd barte-challenge-casa-barton
+python3.13 -m venv .venv
+.venv/bin/python -m pip install -e ".[dev]"
+```
+
+Os comandos usam diretamente o Python do ambiente virtual, sem precisar ativá-lo (no Windows, sem alterar a política de execução do PowerShell). Se `python` não estiver disponível, use `py -3` para criar o ambiente virtual.
 
 Dependências: `openpyxl` para planilhas, `PyYAML` para configuração, SDK `anthropic` para os agentes e `pytest` para testes.
 
@@ -65,8 +78,16 @@ Dependências: `openpyxl` para planilhas, `PyYAML` para configuração, SDK `ant
 
 Para habilitar chamadas reais dos agentes:
 
+**Windows (PowerShell)**
+
 ```powershell
 Copy-Item .env.example .env
+```
+
+**macOS / Linux (bash, zsh)**
+
+```bash
+cp .env.example .env
 ```
 
 Se já existir um arquivo `.env`, edite-o em vez de sobrescrevê-lo. Preencha localmente:
@@ -83,36 +104,76 @@ Os modelos são definidos em [src/config/defaults.yaml](src/config/defaults.yaml
 
 Para uma avaliação reproduzível sem consumir API, mesmo que haja uma chave configurada:
 
+**Windows (PowerShell)**
+
 ```powershell
 $env:TARVO_SEM_IA = "1"
 ```
 
+**macOS / Linux (bash, zsh)**
+
+```bash
+export TARVO_SEM_IA=1
+```
+
 Para permitir chamadas novamente:
+
+**Windows (PowerShell)**
 
 ```powershell
 Remove-Item Env:TARVO_SEM_IA -ErrorAction SilentlyContinue
 ```
 
+**macOS / Linux (bash, zsh)**
+
+```bash
+unset TARVO_SEM_IA
+```
+
 O cache das respostas dos agentes (`cache/agentes/`) não vai para o repositório: é criado na primeira execução com IA, na máquina de quem roda, e reaproveitado nas execuções seguintes, inclusive no modo sem IA. Para uma execução sem respostas anteriores, use uma pasta de cache nova:
+
+**Windows (PowerShell)**
 
 ```powershell
 $env:TARVO_CACHE_AGENTES = ".\data\cache-avaliacao"
+```
+
+**macOS / Linux (bash, zsh)**
+
+```bash
+export TARVO_CACHE_AGENTES="./data/cache-avaliacao"
 ```
 
 Os agentes enviam contexto das exceções ao provedor quando habilitados. O cache pode conter entradas e respostas: trate-o como dado operacional, não como material para publicação indiscriminada.
 
 ## 4. Executar pela interface
 
+**Windows (PowerShell)**
+
 ```powershell
 .\.venv\Scripts\python.exe -m tarvo web
+```
+
+**macOS / Linux (bash, zsh)**
+
+```bash
+.venv/bin/python -m tarvo web
 ```
 
 Abra **[http://127.0.0.1:8000](http://127.0.0.1:8000)**. Mantenha o terminal aberto; use `Ctrl+C` para encerrar.
 
 Para escolher outra porta:
 
+**Windows (PowerShell)**
+
 ```powershell
 .\.venv\Scripts\python.exe -m tarvo web --port 8766
+```
+
+**macOS / Linux (bash, zsh)**
+
+```bash
+.venv/bin/python -m tarvo web --port 8766
 ```
 
 Nesse caso, acesse [http://127.0.0.1:8766](http://127.0.0.1:8766).
@@ -149,17 +210,34 @@ Cada categoria aceita um ou mais arquivos. O upload tem limite de **25 MiB por a
 
 Para gerar as saídas do data pack sem chamadas externas:
 
+**Windows (PowerShell)**
+
 ```powershell
 $env:TARVO_SEM_IA = "1"
 .\.venv\Scripts\python.exe -m tarvo fechar --mes 2026-09 --dados .\dados --saida .\saida
+```
+
+**macOS / Linux (bash, zsh)**
+
+```bash
+export TARVO_SEM_IA=1
+.venv/bin/python -m tarvo fechar --mes 2026-09 --dados ./dados --saida ./saida
 ```
 
 Esse comando usa estado persistente em `data`: fila, decisões, regras e checkpoints. Ele escreve na pasta de saída indicada; para preservar uma execução anterior, escolha outra pasta.
 
 Para executar sem persistir estado, fila ou checkpoints:
 
+**Windows (PowerShell)**
+
 ```powershell
 .\.venv\Scripts\python.exe -m tarvo fechar --mes 2026-09 --dados .\dados --saida .\saida-avaliacao --sem-estado
+```
+
+**macOS / Linux (bash, zsh)**
+
+```bash
+.venv/bin/python -m tarvo fechar --mes 2026-09 --dados ./dados --saida ./saida-avaliacao --sem-estado
 ```
 
 `--sem-estado` não desabilita a IA por si só; use também `TARVO_SEM_IA=1` se não quiser chamadas externas.
@@ -183,25 +261,52 @@ Para outro mês, forneça arquivos do mesmo formato e mude `--mes`, `--dados` e 
 
 ### Fila, decisões e regras
 
+**Windows (PowerShell)**
+
 ```powershell
 .\.venv\Scripts\python.exe -m tarvo fila --mes 2026-09
 .\.venv\Scripts\python.exe -m tarvo fila --mes 2026-09 --todas
 .\.venv\Scripts\python.exe -m tarvo regras
 ```
 
+**macOS / Linux (bash, zsh)**
+
+```bash
+.venv/bin/python -m tarvo fila --mes 2026-09
+.venv/bin/python -m tarvo fila --mes 2026-09 --todas
+.venv/bin/python -m tarvo regras
+```
+
 Exemplo de observação humana sobre uma pendência:
+
+**Windows (PowerShell)**
 
 ```powershell
 .\.venv\Scripts\python.exe -m tarvo decidir --mes 2026-09 --id PEN-DIVERGENCIA_ORBE-22224579000109-202609 --por "Analista" --motivo "Divergência conferida com a adquirente" --nota "Cobrar a diferença na próxima conciliação"
+```
+
+**macOS / Linux (bash, zsh)**
+
+```bash
+.venv/bin/python -m tarvo decidir --mes 2026-09 --id PEN-DIVERGENCIA_ORBE-22224579000109-202609 --por "Analista" --motivo "Divergência conferida com a adquirente" --nota "Cobrar a diferença na próxima conciliação"
 ```
 
 Use um identificador que exista na fila da sua execução. Depois, rode `fechar` novamente para aplicar a decisão. Uma observação não altera valores financeiros.
 
 Também existem decisões de conta contábil e vínculo EC–CNPJ, além de promoção e desativação de regras. Consulte as opções antes de usá-las:
 
+**Windows (PowerShell)**
+
 ```powershell
 .\.venv\Scripts\python.exe -m tarvo decidir --help
 .\.venv\Scripts\python.exe -m tarvo regras --help
+```
+
+**macOS / Linux (bash, zsh)**
+
+```bash
+.venv/bin/python -m tarvo decidir --help
+.venv/bin/python -m tarvo regras --help
 ```
 
 O parâmetro `--estado` permite escolher outra pasta nos comandos do terminal. Para operar sobre um fechamento criado pela interface, é necessário apontar para o estado daquele fechamento, e não para o estado padrão do terminal.
@@ -276,21 +381,46 @@ O orquestrador é código, não um LLM. Respostas são validadas e cacheadas por
 
 Após a instalação com `.[dev]`, execute a suíte Python:
 
+**Windows (PowerShell)**
+
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
+**macOS / Linux (bash, zsh)**
+
+```bash
+.venv/bin/python -m pytest -q
+```
+
 Para verificar apenas agentes, estado e integração web:
+
+**Windows (PowerShell)**
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest .\src\tests\test_agentes.py .\src\tests\test_b8.py .\src\tests\test_web.py -q
 ```
 
+**macOS / Linux (bash, zsh)**
+
+```bash
+.venv/bin/python -m pytest ./src/tests/test_agentes.py ./src/tests/test_b8.py ./src/tests/test_web.py -q
+```
+
 Os testes de agentes usam clientes falsos, sem precisar de chave ou API. Se tiver Node.js instalado, os testes específicos de identificação de uploads podem ser executados separadamente:
+
+**Windows (PowerShell)**
 
 ```powershell
 node .\src\tests\test_upload_identification.cjs
 node .\src\tests\test_renderizador_markdown.cjs
+```
+
+**macOS / Linux (bash, zsh)**
+
+```bash
+node ./src/tests/test_upload_identification.cjs
+node ./src/tests/test_renderizador_markdown.cjs
 ```
 
 ## 9. Limitações conhecidas
