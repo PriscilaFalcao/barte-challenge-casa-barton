@@ -22,6 +22,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 import openpyxl
 from .ingest.erros import LayoutError
 from .ingest.texto import norm_texto
+from .core.excecoes import TIPOS_ALERTA
 from .core.ids import norm_cnpj
 from .estado.db import Estado, RESOLVIDA
 from .ingest.plano_contas import ler_planos
@@ -229,9 +230,13 @@ def _summary(output_dir: Path) -> dict:
         for row in rows
     )
     by_decider: dict[str, int] = {}
+    pending_only: dict[str, int] = {}  # sem os alertas: o que pede uma decisão
+    alerts_by_decider: dict[str, int] = {}
     for row in pending:
         decider = row.get("quem_decide") or "Não definido"
         by_decider[decider] = by_decider.get(decider, 0) + 1
+        target = alerts_by_decider if row.get("tipo") in TIPOS_ALERTA else pending_only
+        target[decider] = target.get(decider, 0) + 1
 
     return {
         "checkout": _format_brl(totals["CHECKOUT"]),
@@ -247,6 +252,9 @@ def _summary(output_dir: Path) -> dict:
         "bank_entries_count": len(bank_entries),
         "pending_count": len(pending),
         "pending_by_decider": by_decider,
+        "alert_count": sum(alerts_by_decider.values()),
+        "alert_by_decider": alerts_by_decider,
+        "pending_only_by_decider": pending_only,
         "reconciles": reconciles,
     }
 
@@ -571,7 +579,8 @@ class _Handler(BaseHTTPRequestHandler):
             self._json({"error": "Envie os arquivos obrigatórios: " + ", ".join(labels[slot] for slot in missing) + "."}, 409)
             return
         try:
-            fechar(state["month"], closure_dir / "dados", closure_dir / "validacao", cliente=None)
+            fechar(state["month"], closure_dir / "dados", closure_dir / "validacao", cliente=None,
+                   historico=closure_dir.parent)
         except (LayoutError, ValidationError, OSError, ValueError) as exc:
             state["validation_error"] = str(exc)
             state["status"] = "uploading"
@@ -635,6 +644,7 @@ class _Handler(BaseHTTPRequestHandler):
                 closure_dir / "dados",
                 closure_dir / "saida",
                 estado=closure_dir / "estado",
+                historico=closure_dir.parent,
             )
             state["status"] = "completed"
             state["execution_id"] = result.execucao_id

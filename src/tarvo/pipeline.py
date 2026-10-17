@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import collections
 import time
+from decimal import Decimal
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -31,6 +32,7 @@ from .engines.notas import calcular_notas
 from .engines.remessa import calcular_remessa
 from .estado.checkpoint import Checkpoints, fingerprint, hash_arquivo, hash_codigo
 from .estado.db import Estado
+from .estado.historico import ler_historico
 from .identity.registro import Registro
 from .ingest.aurora import ler_aurora
 from .ingest.erros import LayoutError
@@ -124,7 +126,7 @@ def _excecao_troca(t: Substituicao) -> Excecao:
         f"O id_transacao {d.id_transacao} aparece em {d.arquivo} (movimento {d.data_movimento:%d/%m/%Y}, bruto "
         f"R$ {fmt(d.valor_bruto)}, taxa R$ {fmt(d.valor_taxa)}) e em {m.arquivo} (movimento "
         f"{m.data_movimento:%d/%m/%Y}, bruto R$ {fmt(m.valor_bruto)}, taxa R$ {fmt(m.valor_taxa)}). Premissa: a "
-        f"linha mais recente permanece e a mais antiga sai; o cálculo usa a de {m.arquivo}. Confirmar com a Helena.")
+        f"linha mais recente permanece e a mais antiga sai; o cálculo usa a de {m.arquivo}. Confirmar com o financeiro.")
 
 
 def _ingerir(arqs: dict[str, list[Path]]) -> Ingestao:
@@ -160,9 +162,18 @@ def _registro(ing: Ingestao, cfg) -> Registro:
     return Registro.construir(ing.contratos, cfg.ecs_extra, cfg.sem_contrato, cfg.aliases)
 
 
-def _checkout(ing: Ingestao, cfg, mes: str) -> Saida:
+def _checkout(ing: Ingestao, cfg, mes: str, historicas: list | None = None,
+              meses_historicos: dict | None = None, ecs_com_vendas: set | None = None) -> Saida:
+    """`historicas`/`meses_historicos`: linhas da Orbe de meses anteriores que o histórico deixou pendentes
+    (ver estado/historico.py). Somam-se às que a configuração (`recuperacao_pendentes`) manda recuperar."""
     r, l = Rastro(), Ledger()
-    res = calcular_checkout(ing.txs, _registro(ing, cfg), Resolvedor(ing.contratos, cfg.overrides), mes, r, l)
+    recuperar = {rc.ec: frozenset(rc.meses) for rc in cfg.recuperacao}
+    for ec, meses in (meses_historicos or {}).items():
+        recuperar[ec] = recuperar.get(ec, frozenset()) | meses
+    ja = {t.id_transacao for t in ing.txs}
+    txs = ing.txs + [t for t in (historicas or []) if t.id_transacao not in ja]
+    res = calcular_checkout(txs, _registro(ing, cfg), Resolvedor(ing.contratos, cfg.overrides), mes, r, l,
+                            recuperar, ecs_com_vendas)
     return Saida(res, r, l)
 
 
@@ -224,18 +235,32 @@ class _Executor:
         return resultado
 
 
+def _linhas_recuperacao(linhas) -> list[str]:
+    """Uma linha no log por mês recuperado: o que entrou no fechamento vindo de meses anteriores."""
+    por_mes: dict[str, list] = collections.defaultdict(list)
+    for l in linhas:
+        if l.regra_id.endswith("+RECUP"):
+            por_mes[l.tx.data_movimento.strftime("%Y-%m")].append(l)
+    return [f"Recuperação: {len(ls)} linha(s) da Orbe de {m} faturadas neste mês "
+            f"(EC {', '.join(sorted({l.tx.cod_estabelecimento for l in ls}))}; comissão R$ "
+            f"{fmt(sum((l.comissao for l in ls), Decimal('0')))})" for m, ls in sorted(por_mes.items())]
+
+
 def _n_exc(s: Saida) -> dict:
     return {"excecoes": len(s.resultado.excecoes), "rastro": len(s.rastro.linhas())}
 
 
 def fechar(mes: str, dados: Path, saida: Path, estado: Path | None = None,
-           cliente: ClienteLLM | None | str = "padrao", cache: Path | None = None) -> ResultadoFechamento:
+           cliente: ClienteLLM | None | str = "padrao", cache: Path | None = None,
+           historico: Path | None = None) -> ResultadoFechamento:
+    """`historico`: pasta com os fechamentos anteriores (dados/ e saida/ de cada um). Com ela, o que um mês
+    deixou pendente por falta de contrato é recuperado assim que o contrato aparece (estado/historico.py)."""
     dados, saida = Path(dados), Path(saida)
     db = Estado(estado) if estado is not None else None
     execucao_id = db.iniciar_execucao(mes) if db else None
     try:
         res = _fechar(mes, dados, saida, db, execucao_id, Checkpoints(estado, mes),
-                      cliente_padrao() if cliente == "padrao" else cliente, cache or pasta_cache())
+                      cliente_padrao() if cliente == "padrao" else cliente, cache or pasta_cache(), historico)
         if db:
             db.terminar_execucao(execucao_id, "CONCLUIDA")
         return res
@@ -248,20 +273,25 @@ def fechar(mes: str, dados: Path, saida: Path, estado: Path | None = None,
             db.fechar()
 
 
-def _fechar(mes, dados, saida, db, execucao_id, ck, cliente, cache) -> ResultadoFechamento:
+def _fechar(mes, dados, saida, db, execucao_id, ck, cliente, cache, historico=None) -> ResultadoFechamento:
     arqs = {k: _arquivos(dados, p) for k, p in ARQUIVOS.items()}
     promovidas = db.regras() if db else []
     decisoes = db.decisoes(mes) if db else []
     bruto = mesclar_promovidas(ler_yaml(), promovidas)
     cfg = construir_config(bruto)
     ex = _Executor(ck, db, execucao_id)
+    hist = ler_historico(historico, mes, ARQUIVOS["orbe"])
+    historicas, meses_historicos = hist.linhas, hist.meses
 
     # Fingerprints: código + entradas + o trecho de configuração e as decisões que cada etapa usa.
     codigo = hash_codigo()
-    cadastro = {k: bruto.get(k) for k in ("ecs_extra", "sem_contrato", "aliases", "overrides_taxa")}
+    cadastro = {k: bruto.get(k) for k in ("ecs_extra", "sem_contrato", "aliases", "overrides_taxa",
+                                                "recuperacao_pendentes")}
     decisoes_conta = {d["payload"]["ref_origem"]: d["payload"]["conta"] for d in decisoes if d["tipo_decisao"] == "CONTA"}
     fp_ing = fingerprint("ingestao", codigo, {k: [(p.name, hash_arquivo(p)) for p in v] for k, v in arqs.items()})
-    fp_chk = fingerprint("checkout", codigo, fp_ing, cadastro, mes)
+    fp_chk = fingerprint("checkout", codigo, fp_ing, cadastro, mes,
+                         [(t.id_transacao, t.arquivo) for t in historicas], sorted(meses_historicos.items()),
+                         None if hist.ecs_com_vendas is None else sorted(hist.ecs_com_vendas))
     fp_div = fingerprint("divergencias", codigo, fp_chk, mes)
     fp_rem = fingerprint("remessa", codigo, fp_ing, cadastro, mes)
     fp_not = fingerprint("notas", codigo, fp_chk, fp_rem, mes)
@@ -275,7 +305,7 @@ def _fechar(mes, dados, saida, db, execucao_id, ck, cliente, cache) -> Resultado
     ops_mes = [o for o in ing.ops if no_mes(o.data_contratacao, mes)]
     avisos = checar_mes_com_dados(len(txs_mes), len(ops_mes), mes)
 
-    chk: Saida = ex.rodar("checkout", fp_chk, lambda: _checkout(ing, cfg, mes), _n_exc)
+    chk: Saida = ex.rodar("checkout", fp_chk, lambda: _checkout(ing, cfg, mes, historicas, meses_historicos, hist.ecs_com_vendas), _n_exc)
     div: Saida = ex.rodar("divergencias", fp_div, lambda: _divergencias(chk, mes), _n_exc)
     rem: Saida = ex.rodar("remessa", fp_rem, lambda: _remessa(ing, cfg, mes), _n_exc)
     nts: Saida = ex.rodar("notas", fp_not, lambda: _notas(chk, rem, mes), _n_exc)
@@ -352,7 +382,7 @@ def _fechar(mes, dados, saida, db, execucao_id, ck, cliente, cache) -> Resultado
     validar_i_n1(notas)
     validar_i_c1(lancamentos, ing.plano)
     orbe_todas: dict[str, set[str]] = {}
-    for t in ing.txs + [s.descartada for s in ing.trocas_orbe]:
+    for t in ing.txs + [s.descartada for s in ing.trocas_orbe] + historicas:
         orbe_todas.setdefault(t.arquivo, set()).add(t.id_transacao)
     ponte_todas: dict[str, set[str]] = {}
     for o in ing.ops:
@@ -399,6 +429,7 @@ def _fechar(mes, dados, saida, db, execucao_id, ck, cliente, cache) -> Resultado
         f"Meridiano: PIX recebidos de lojistas − TEDs à Ponte no mês = R$ {fmt(banres.saldo_recursos_remessa)} "
         f"(recursos para remessas ainda não liquidados)",
         *ledger.linhas_log(),
+        *_linhas_recuperacao(chk.resultado.linhas),
         *[f"AVISO: {a}" for a in avisos],
         f"agentes: {len(ag.chamadas)} exceção(ões) roteada(s), "
         f"{sum(c.origem in ('cache', 'api') for c in ag.chamadas)} com resposta, "

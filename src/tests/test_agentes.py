@@ -191,13 +191,13 @@ def test_candidates_are_analytic_filtered_by_sign_and_include_provisional():
 def test_investigator_fills_extra_columns_and_drops_hypotheses_with_invented_refs(dados, tmp_path):
     f = Falso({"investigador": _hipotese})
     _, pend, _ = _rodar(dados, tmp_path, f)
-    l34 = next(p for p in pend if p["ref_origem"] == "L34")
-    assert l34["hipoteses_ia"].startswith("1) Hipótese de teste.") and "Inventada" not in l34["hipoteses_ia"]
-    assert l34["pergunta_sugerida"] == "Quem autorizou?"
-    assert l34["motivo"].startswith("PIX de R$ 112.220,15")  # o motivo determinístico não muda
+    l50 = next(p for p in pend if p["ref_origem"] == "L50")
+    assert l50["hipoteses_ia"].startswith("1) Hipótese de teste.") and "Inventada" not in l50["hipoteses_ia"]
+    assert l50["pergunta_sugerida"] == "Quem autorizou?"
+    assert l50["motivo"].startswith("PIX de R$ 7350.00")  # o motivo determinístico não muda
     roteadas = {p["tipo"] for p in pend if p["hipoteses_ia"]}
-    assert roteadas == {"REPASSE_ATIPICO", "LANCAMENTO_SEM_ORIGEM", "DEVOLUCAO_PIX", "ALERTA_ANTECIPACAO"}
-    assert len(f.chamadas) == 4
+    assert roteadas == {"LANCAMENTO_SEM_ORIGEM", "DEVOLUCAO_PIX", "ALERTA_ANTECIPACAO"}
+    assert len(f.chamadas) == 3
 
 
 def test_investigator_evidence_is_built_by_code_around_the_counterparty(dados):
@@ -237,7 +237,7 @@ def test_rate_interpreter_never_applies_and_checks_the_quoted_excerpt():
 def test_answers_are_cached_and_reused_without_a_client(dados, tmp_path):
     f = Falso({"investigador": _hipotese})
     _rodar(dados, tmp_path, f, "a")
-    assert len(f.chamadas) == 4 and len(list((tmp_path / "cache" / "investigador").glob("*.json"))) == 4
+    assert len(f.chamadas) == 3 and len(list((tmp_path / "cache" / "investigador").glob("*.json"))) == 3
     _rodar(dados, tmp_path, None, "b")  # sem cliente: o cache responde
     assert (tmp_path / "a" / "pendencias.csv").read_bytes() == (tmp_path / "b" / "pendencias.csv").read_bytes()
 
@@ -253,12 +253,12 @@ def test_call_budget_sends_the_rest_to_people(dados, tmp_path, monkeypatch):
     f = Falso({"investigador": _hipotese})
     res, pend, _ = _rodar(dados, tmp_path, f)
     assert len(f.chamadas) == 1 and sum(bool(p["hipoteses_ia"]) for p in pend) == 1
-    assert sum(c.origem == "limite" for c in res.agentes.chamadas) == 3
+    assert sum(c.origem == "limite" for c in res.agentes.chamadas) == 2
 
 
 def test_api_error_never_breaks_the_close(dados, tmp_path):
     res, pend, _ = _rodar(dados, tmp_path, Falso({}, erro=RuntimeError("503")))
-    assert len(pend) == 18 and all(not p["hipoteses_ia"] for p in pend)
+    assert len(pend) == 17 and all(not p["hipoteses_ia"] for p in pend)
     assert {c.origem for c in res.agentes.chamadas} == {"erro"}
 
 

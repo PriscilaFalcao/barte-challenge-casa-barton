@@ -1,8 +1,8 @@
 """Linha de comando (modo sem interface, PRD 9). Mesmo motor que a interface vai chamar.
 
-    python -m tarvo fechar  --mes 2026-09 [--dados dados/] [--saida saida/] [--estado data/ | --sem-estado]
+    python -m tarvo fechar  --mes 2026-09 [--dados dados/] [--saida saida/] [--estado data/ | --sem-estado] [--historico pasta/]
     python -m tarvo fila    --mes 2026-09 [--todas]
-    python -m tarvo decidir --mes 2026-09 --id PEN-... --por Helena --motivo "..." (--conta C [--padrao REGEX] | --ec EC --cnpj CNPJ | --nota TEXTO) [--escopo caso|regra]
+    python -m tarvo decidir --mes 2026-09 --id PEN-... --por Financeiro --motivo "..." (--conta C [--padrao REGEX] | --ec EC --cnpj CNPJ | --nota TEXTO) [--escopo caso|regra]
     python -m tarvo regras  [--desativar ID]
 
 O estado (fila, decisões, regras promovidas, eventos e checkpoints) fica em data/, ou em $TARVO_ESTADO.
@@ -28,7 +28,7 @@ def _estado_padrao() -> Path:
 
 def _cmd_fechar(a) -> None:
     estado = None if a.sem_estado else a.estado
-    res = fechar(a.mes, a.dados, a.saida, estado)
+    res = fechar(a.mes, a.dados, a.saida, estado, historico=a.historico)
 
     def total(linha: str) -> Decimal:
         return sum((c["comissao_brl"] for c in res.comissoes if c["linha_negocio"] == linha), Decimal("0"))
@@ -114,6 +114,9 @@ def main(argv: list[str] | None = None) -> None:
     f.add_argument("--dados", type=Path, default=Path("dados"))
     f.add_argument("--saida", type=Path, default=Path("saida"))
     f.add_argument("--estado", type=Path, default=_estado_padrao())
+    f.add_argument("--historico", type=Path, default=None,
+                   help="pasta com os fechamentos anteriores (uma subpasta por mês, com dados/ e saida/); "
+                        "recupera o que ficou pendente por falta de contrato")
     f.add_argument("--sem-estado", action="store_true", help="roda puro, sem checkpoint, fila nem decisões")
 
     fi = sub.add_parser("fila", help="lista a fila de validação do mês")

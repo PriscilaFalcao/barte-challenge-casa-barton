@@ -30,7 +30,7 @@ def saida(dados, tmp_path_factory):
 def test_every_exception_type_has_an_owner_in_config():
     cfg = carregar_defaults()
     assert set(cfg.quem_decide) == set(TipoExcecao)
-    assert cfg.quem_decide[TipoExcecao.CONTRATO_AMBIGUO] == "Diego"  # ✅ cadastro e contrato: comercial
+    assert cfg.quem_decide[TipoExcecao.CONTRATO_AMBIGUO] == "Comercial"  # ✅ cadastro e contrato: comercial
 
 
 def test_owner_and_blocking_come_from_config(tmp_path):
@@ -73,7 +73,7 @@ def test_brl_is_brazilian_format(v, txt):
     assert brl(D(v)) == txt
 
 
-def _pend(tipo, ref, valor, quem="Helena", bloq="N"):
+def _pend(tipo, ref, valor, quem="Financeiro", bloq="N"):
     return {"id_saida": f"PEN-{tipo}-{ref}", "tipo": tipo, "ref_origem": ref, "valor_brl": D(valor),
             "motivo": "m | com barra", "quem_decide": quem, "bloqueante": bloq}
 
@@ -86,7 +86,7 @@ def _resumo(pendencias):
 
 def test_resumo_says_ready_only_without_blocking_pendings():
     assert "Pronto para fechar" in _resumo([_pend("DIVERGENCIA_ORBE", "X", "1")])
-    txt = _resumo([_pend("CONTRATO_AMBIGUO", "Taxas!L6", "0", "Diego", "S")])
+    txt = _resumo([_pend("CONTRATO_AMBIGUO", "Taxas!L6", "0", "Comercial", "S")])
     assert "Não fechar ainda" in txt and "**bloqueante**" in txt
 
 
@@ -104,7 +104,7 @@ def test_resumo_shows_merchant_name_for_grouped_pendings_and_escapes_pipes():
 def test_real_resumo_has_the_key_numbers(saida):
     txt = (saida / "resumo.md").read_text(encoding="utf-8")
     for esperado in ("R$ 203.735,34", "R$ 39.543,45", "R$ 243.284,29", "R$ 15.397,42", "Pronto para fechar",
-                     "I-R1, I-R2, I-R3, I-D1, I-N1, I-C1 ok", "### Helena e Diego (2)", "### Diego (1)"):
+                     "I-R1, I-R2, I-R3, I-D1, I-N1, I-C1 ok", "### Financeiro e Comercial (2)", "### Comercial (1)"):
         assert esperado in txt, esperado
 
 
@@ -112,7 +112,7 @@ def test_pendencias_csv_has_blocking_column_and_owners_from_config(saida):
     pend = _ler(saida / "pendencias.csv")
     assert {p["bloqueante"] for p in pend} == {"N"}
     por_tipo = {p["tipo"]: p["quem_decide"] for p in pend}
-    assert por_tipo["SEM_CONTRATO"] == "Diego" and por_tipo["DEVOLUCAO_LOJISTA"] == "Helena e Diego"
+    assert por_tipo["SEM_CONTRATO"] == "Comercial" and por_tipo["DEVOLUCAO_LOJISTA"] == "Financeiro e Comercial"
 
 
 def test_resumo_is_identical_between_runs(saida, dados, tmp_path):

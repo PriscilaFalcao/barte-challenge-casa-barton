@@ -63,7 +63,7 @@ def test_events_are_recorded_per_stage(dados, tmp_path):
     for inicio, fim in zip(chamadas[::2], chamadas[1::2]):
         assert (inicio["status"], fim["status"]) == ("iniciada", "concluida")
         assert inicio["detalhe"] == fim["detalhe"]
-    assert ev[0]["detalhe"]["orbe"] == 1957 and ev[-1]["detalhe"]["pendencias"] == 18
+    assert ev[0]["detalhe"]["orbe"] == 1957 and ev[-1]["detalhe"]["pendencias"] == 17
     assert db.ultima_execucao("2026-09")["status"] == "CONCLUIDA"
 
 
@@ -76,7 +76,7 @@ def test_failed_run_is_recorded_as_error(dados, tmp_path):
 def test_queue_mirrors_pendings(dados, tmp_path):
     fechar("2026-09", dados, tmp_path / "s", tmp_path / "est", cliente=None)
     fila = Estado(tmp_path / "est").fila("2026-09")
-    assert len(fila) == 18 and {i["estado"] for i in fila} == {AGUARDANDO}
+    assert len(fila) == 17 and {i["estado"] for i in fila} == {AGUARDANDO}
 
 
 def test_line_without_rule_goes_to_provisional_account_and_queue(dados_sem_regra, tmp_path):
@@ -89,7 +89,7 @@ def test_line_without_rule_goes_to_provisional_account_and_queue(dados_sem_regra
 def test_human_account_decision_recomputes_only_banks(dados_sem_regra, tmp_path):
     est, s = tmp_path / "est", tmp_path / "s"
     fechar("2026-09", dados_sem_regra, s, est, cliente=None)
-    main(["decidir", "--mes", "2026-09", "--id", "PEN-CLASSIFICACAO_BAIXA_CONFIANCA-L53", "--por", "Helena",
+    main(["decidir", "--mes", "2026-09", "--id", "PEN-CLASSIFICACAO_BAIXA_CONFIANCA-L53", "--por", "Financeiro",
           "--motivo", "gráfica é serviço de terceiros", "--conta", "4.2.06", "--dados", str(dados_sem_regra),
           "--estado", str(est)])
     res = fechar("2026-09", dados_sem_regra, s, est, cliente=None)
@@ -105,12 +105,12 @@ def test_human_account_decision_recomputes_only_banks(dados_sem_regra, tmp_path)
 def test_promoted_rule_applies_and_can_be_reverted(dados_sem_regra, tmp_path):
     est, s = tmp_path / "est", tmp_path / "s"
     fechar("2026-09", dados_sem_regra, s, est, cliente=None)
-    main(["decidir", "--mes", "2026-09", "--id", "PEN-CLASSIFICACAO_BAIXA_CONFIANCA-L53", "--por", "Helena",
+    main(["decidir", "--mes", "2026-09", "--id", "PEN-CLASSIFICACAO_BAIXA_CONFIANCA-L53", "--por", "Financeiro",
           "--motivo", "toda gráfica é serviço", "--conta", "4.2.06", "--escopo", "regra", "--banco", "AURORA",
           "--padrao", "^boleto grafica", "--dados", str(dados_sem_regra), "--estado", str(est)])
     db = Estado(est)
     (regra,) = db.regras()
-    assert regra["tipo"] == "PADRAO_CONTA" and regra["autor"] == "Helena"
+    assert regra["tipo"] == "PADRAO_CONTA" and regra["autor"] == "Financeiro"
     # Simula o mês seguinte: a decisão do caso (L53 deste mês) não vale mais; a regra promovida, sim.
     db.con.execute("UPDATE decisoes SET ativa = 0")
     db.con.commit()
@@ -127,7 +127,7 @@ def test_registry_change_recomputes_checkout_side_but_not_banks(dados, tmp_path)
     est = tmp_path / "est"
     fechar("2026-09", dados, tmp_path / "s", est, cliente=None)
     db = Estado(est)
-    db.promover_regra("EC_LOJISTA", {"ec": "9999999999", "cnpj": "66564512000199"}, "Diego", "EC novo", None)
+    db.promover_regra("EC_LOJISTA", {"ec": "9999999999", "cnpj": "66564512000199"}, "Comercial", "EC novo", None)
     db.fechar()
     st = _status(fechar("2026-09", dados, tmp_path / "s", est, cliente=None))
     assert [st[e] for e in CALCULO] == ["reaproveitada", "executada", "executada", "executada", "executada",
@@ -138,12 +138,12 @@ def test_note_decision_is_recorded_in_pendencias_without_changing_numbers(dados,
     est, s = tmp_path / "est", tmp_path / "s"
     fechar("2026-09", dados, s, est, cliente=None)
     antes = (s / "comissoes_por_lojista.csv").read_bytes()
-    main(["decidir", "--mes", "2026-09", "--id", "PEN-DIVERGENCIA_ORBE-22224579000109-202609", "--por", "Helena",
+    main(["decidir", "--mes", "2026-09", "--id", "PEN-DIVERGENCIA_ORBE-22224579000109-202609", "--por", "Financeiro",
           "--motivo", "cobrar a Orbe", "--nota", "cobrar R$ 29,95 da Orbe e devolver à Bridge", "--estado", str(est)])
     res = fechar("2026-09", dados, s, est, cliente=None)
     assert all(v == "reaproveitada" for e, v in res.etapas if e in CALCULO)
     p = next(p for p in _ler(s / "pendencias.csv") if p["id_saida"] == "PEN-DIVERGENCIA_ORBE-22224579000109-202609")
-    assert p["decisao"] == "Helena: cobrar R$ 29,95 da Orbe e devolver à Bridge"
+    assert p["decisao"] == "Financeiro: cobrar R$ 29,95 da Orbe e devolver à Bridge"
     assert (s / "comissoes_por_lojista.csv").read_bytes() == antes
     assert Estado(est).item_fila("2026-09", p["id_saida"])["estado"] == DECIDIDA
 

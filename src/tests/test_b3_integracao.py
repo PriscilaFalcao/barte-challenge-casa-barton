@@ -91,7 +91,7 @@ def test_invariants_and_pending_per_divergence(corrida):
                   "pendencias": pend}, rastro)
     por_tipo = {(e.tipo, e.ref_origem): e.valor_brl for e in div.excecoes}
     assert por_tipo == {
-        (TipoExcecao.DEVOLUCAO_LOJISTA, f"{CASA}-202609"): D("15397.42"),
+        (TipoExcecao.DEVOLUCAO_LOJISTA, f"{CASA}-202609"): D("15396.77"),
         (TipoExcecao.DIVERGENCIA_ORBE, f"{ROTA}-202609"): D("1546.28"),
         (TipoExcecao.DIVERGENCIA_ORBE, f"{BRIDGE}-202609"): D("29.95"),
     }

@@ -50,7 +50,7 @@ def test_atlas_is_out_of_commissions_and_is_a_pending_for_diego(corrida):
     res, rastro, _ = corrida
     assert all(c["cnpj"] != "39566044000119" and "Atlas" not in c["lojista"] for c in res.comissoes)
     (e,) = [e for e in res.excecoes if e.tipo == TipoExcecao.SEM_CONTRATO]
-    assert (e.tipo, e.ref_origem, e.quem_decide) == (TipoExcecao.SEM_CONTRATO, "1076801732", "Diego")
+    assert (e.tipo, e.ref_origem, e.quem_decide) == (TipoExcecao.SEM_CONTRATO, "1076801732", "Comercial")
     assert len([l for l in rastro.linhas() if l.id_saida == e.id_saida]) == 57
     assert e.valor_brl == D("7876.05")
 
@@ -98,6 +98,6 @@ def test_atlas_anticipation_is_an_alert_for_helena_and_comercial(corrida):
     """✅ P8: "Atlas antecipou R$ 179.592,82 em 15/09 e, até essa data, tinha R$ 55.357,50 em vendas"."""
     res, rastro, _ = corrida
     (e,) = [e for e in res.excecoes if e.tipo == TipoExcecao.ALERTA_ANTECIPACAO]
-    assert (e.ref_origem, e.quem_decide, e.valor_brl) == ("1076801732", "Helena e Diego", D("127230.96"))
+    assert (e.ref_origem, e.quem_decide, e.valor_brl) == ("1076801732", "Financeiro e Comercial", D("127230.96"))
     assert "179592.82" in e.motivo and "55357.50" in e.motivo
     assert rastro.soma(e.id_saida) == e.valor_brl

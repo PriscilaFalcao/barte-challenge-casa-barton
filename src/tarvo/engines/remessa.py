@@ -156,9 +156,13 @@ def calcular_remessa(
         if negativo:  # ✅ R5: fora da comissão e da nota; contestação
             valor = diferenca if divergente else o.spread_brl
             contra = f"contra {fmt_pct(contratado_pp)}% contratado" if contratado_pp is not None else "sem contrato"
+            # ✅ Helena 11h37: os dois valores, identificados. O do relatório é o que aconteceu; o desvio até o
+            # contrato é o que se pede à Ponte (e o valor da pendência).
             contestar[o.cnpj14].append(_ItemContestacao(
                 NEGATIVO, n_op, valor, "SPREAD", "R9",
-                f"{o.observacao or 'sem observação'}; fora da comissão e da nota; valor = desvio {contra}"))
+                f"{o.observacao or 'sem observação'}; fora da comissão e da nota; spread do relatório "
+                f"R$ {fmt(o.spread_brl)} (o que aconteceu); valor = desvio {contra}, R$ {fmt(valor)} "
+                f"(o que se pede à Ponte)"))
             continue
 
         comissao = meia(o)

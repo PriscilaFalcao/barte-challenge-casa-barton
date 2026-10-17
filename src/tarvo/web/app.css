@@ -99,6 +99,8 @@ h1 { margin-bottom: 7px; font-size: clamp(26px, 3vw, 32px); letter-spacing: -1.1
 .queue-item-heading h3 { margin: 0 0 6px; font-size: 13px; }
 .queue-item p { margin-bottom: 8px; color: var(--muted); font-size: 11px; line-height: 1.55; }
 .queue-item .queue-metadata { color: var(--ink); }
+.queue-tags { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.tag-alert { display: inline-flex; align-items: center; padding: 7px 10px; border: 1px solid #f5cc6c; border-radius: 5px; background: transparent; color: #f5cc6c; font-size: 10px; font-weight: 700; white-space: nowrap; }
 .decision-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
 .decision-form .field-label { margin: 0; }
 .decision-form .wide { grid-column: 1 / -1; }

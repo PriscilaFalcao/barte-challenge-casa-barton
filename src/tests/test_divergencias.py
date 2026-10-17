@@ -79,7 +79,7 @@ def test_one_pending_per_merchant_with_net_value_and_every_transaction_in_rastro
                       tx("TX3", tipo="ESTORNO", bruto="-200.00", aplicada="1.50", ref="TX1", orig=date(2026, 9, 2))])
     (e,) = r.excecoes
     assert (e.tipo, e.ref_origem, e.valor_brl, e.quem_decide) == (
-        TipoExcecao.DIVERGENCIA_ORBE, f"{CNPJ}-202609", D("6.50"), "Helena")
+        TipoExcecao.DIVERGENCIA_ORBE, f"{CNPJ}-202609", D("6.50"), "Financeiro")
     assert e.id_saida == f"PEN-DIVERGENCIA_ORBE-{CNPJ}-202609"
     assert sorted(l.ref_origem for l in rastro.linhas() if l.id_saida == e.id_saida) == ["TX1", "TX2", "TX3"]
     assert rastro.soma(e.id_saida) == D("6.50")
@@ -93,12 +93,15 @@ def test_contract_divergence_is_marked_as_such():
 
 def test_override_divergence_is_a_merchant_refund_not_an_orbe_charge():
     """✅ Helena 10h58 (Casa): listada e marcada em divergências, pendência única com o total, fora da Orbe."""
-    txs = [tx("TX1", bruto="200.00", aplicada="1.49"), tx("TX2", bruto="300.00", aplicada="1.49")]
+    # valor_taxa = o que a Orbe descontou de fato (trunca): a devolução usa ele, não a fórmula (Helena 12h50)
+    txs = [tx("TX1", bruto="200.00", aplicada="1.49", valor_taxa="2.98"),
+           tx("TX2", bruto="300.00", aplicada="1.49", valor_taxa="4.46")]
     r, rastro = _div(txs, overrides=[ZERO_DEB])
     assert {d["natureza"] for d in r.divergencias} == {ISENCAO}
+    assert sum(d["diferenca_brl"] for d in r.divergencias) == D("7.45")  # fórmula, na lista de divergências
     (e,) = r.excecoes
-    assert (e.tipo, e.valor_brl, e.quem_decide) == (TipoExcecao.DEVOLUCAO_LOJISTA, D("7.45"), "Helena e Diego")
-    assert "não entra na cobrança à Orbe" in e.motivo and rastro.soma(e.id_saida) == D("7.45")
+    assert (e.tipo, e.valor_brl, e.quem_decide) == (TipoExcecao.DEVOLUCAO_LOJISTA, D("7.44"), "Financeiro e Comercial")
+    assert "não entra na cobrança à Orbe" in e.motivo and rastro.soma(e.id_saida) == D("7.44")
 
 
 def test_same_merchant_with_both_natures_gets_two_pendings():

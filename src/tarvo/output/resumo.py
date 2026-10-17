@@ -145,5 +145,5 @@ def gerar_resumo(mes: str, comissoes: list[dict], divergencias: list[dict], nota
             "- Linhas lidas, descartadas (rodapé, saldo, fora do mês) e avisos: `execucao.log`.",
             "- Origem de cada número: `rastro.csv` (`id_saida` → arquivo e linha de origem; a soma por `id_saida` "
             "é o número reportado).",
-            "- Premissas e perguntas ao financeiro: `docs/HIPOTESES.md`.", ""]
+            "- Premissas e perguntas ao financeiro: `HIPOTESES.md`.", ""]
     return "\n".join(out)

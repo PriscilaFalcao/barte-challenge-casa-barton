@@ -27,11 +27,13 @@ def tx(id_="TX1", dia=date(2026, 9, 10), tipo="VENDA", mod="DEBITO", parc=1, bru
                   D(bruto), ref, orig)
 
 
-def rodar_checkout(txs, contratos=None, overrides=(), sem_contrato=None, ecs_extra=None, mes="2026-09"):
+def rodar_checkout(txs, contratos=None, overrides=(), sem_contrato=None, ecs_extra=None, mes="2026-09",
+                   recuperar=None, ecs_com_historico=None):
     contratos = contratos or [contrato()]
     reg = Registro.construir(contratos, ecs_extra or {}, sem_contrato or {})
     rastro = Rastro()
-    res = calcular_checkout(txs, reg, Resolvedor(contratos, overrides), mes, rastro)
+    res = calcular_checkout(txs, reg, Resolvedor(contratos, overrides), mes, rastro, recuperar=recuperar,
+                           ecs_com_historico=ecs_com_historico)
     return res, rastro
 
 

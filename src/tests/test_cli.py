@@ -36,9 +36,8 @@ def test_fechar_writes_the_checkout_outputs_and_they_reconcile(dados, tmp_path):
     assert {t: len(v) for t, v in por_tipo.items()} == {"SEM_CONTRATO": 1, "DIVERGENCIA_ORBE": 2, "CONTESTACAO_PONTE": 6,
                                                       "COMISSAO_NAO_POSITIVA": 1, "DEVOLUCAO_LOJISTA": 1,
                                                       "ALERTA_ANTECIPACAO": 1, "CONFERIR_MES_SEGUINTE": 3,
-                                                      "LANCAMENTO_SEM_ORIGEM": 1, "DEVOLUCAO_PIX": 1,
-                                                      "REPASSE_ATIPICO": 1}
-    assert por_tipo["SEM_CONTRATO"][0]["quem_decide"] == "Diego"
+                                                      "LANCAMENTO_SEM_ORIGEM": 1, "DEVOLUCAO_PIX": 1}
+    assert por_tipo["SEM_CONTRATO"][0]["quem_decide"] == "Comercial"
     notas = _ler(tmp_path / "notas_a_emitir.csv")
     assert len(notas) == 21  # 20 de checkout (a Casa não emite) + 1 de remessa para a Ponte
     for n in notas:
@@ -133,7 +132,7 @@ def test_execution_log_reports_counts_ignored_rows_and_validations(dados, tmp_pa
         "Taxas: 1 linha(s) ignorada(s) (rodapé ou linha sem dado)",
         "validação: I-R1, I-R2, I-R3, I-D1, I-N1, I-C1 ok",
         "comissoes_por_lojista: 35 linha(s)",
-        "pendencias: 18 linha(s), 0 bloqueante(s)",
+        "pendencias: 17 linha(s), 0 bloqueante(s)",
         "Meridiano: PIX recebidos de lojistas − TEDs à Ponte no mês = R$ 18240.00 (recursos para remessas ainda não liquidados)",
         "Aurora: 84 lançamento(s); cadeia de saldos fecha (R$ 612334.81 -> R$ -1920088.60)",
         "Aurora: 2 linha(s) ignorada(s) (saldo anterior ou final); ex.: L8, L94",

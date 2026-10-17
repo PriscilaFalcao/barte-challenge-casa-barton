@@ -14,7 +14,7 @@ A interface usa a marca Casa Barton; o pacote Python e os comandos continuam com
 - Rastro dos valores até as linhas dos arquivos de origem.
 - Interface para upload, acompanhamento da execução, decisões humanas e download das saídas.
 
-O problema não é apenas somar arquivos: há cadastros incompletos, contratos ambíguos, duplicatas e regras que estavam dispersas entre financeiro e comercial. As causas, evidências e premissas estão em [Hipóteses](docs/HIPOTESES.md); as perguntas e respostas estão em [Registro do financeiro](docs/perguntas_slack.md).
+O problema não é apenas somar arquivos: há cadastros incompletos, contratos ambíguos, duplicatas e regras que estavam dispersas entre financeiro e comercial. As causas, evidências e premissas estão em [Hipóteses](HIPOTESES.md); as perguntas e respostas estão em [Registro do financeiro](docs/perguntas_slack.md).
 
 ## 1. Requisitos
 
@@ -25,7 +25,26 @@ O problema não é apenas somar arquivos: há cadastros incompletos, contratos a
 
 Não é necessário instalar Node.js, banco de dados externo ou ferramentas de build do front. A interface usa HTML, CSS e JavaScript; o estado local usa SQLite.
 
-Os exemplos abaixo usam **PowerShell no Windows**, executados na raiz do repositório.
+Os exemplos usam **PowerShell (Windows)**, executados na raiz do repositório. No **macOS/Linux**, use o equivalente em bash/zsh da tabela abaixo; os comandos `python -m tarvo ...` e seus argumentos são idênticos.
+
+| Ação | Windows (PowerShell) | macOS / Linux (bash, zsh) |
+|---|---|---|
+| Criar o ambiente | `python -m venv .venv` | `python3 -m venv .venv` |
+| Python do ambiente | `.\.venv\Scripts\python.exe` | `.venv/bin/python` |
+| Instalar | `.\.venv\Scripts\python.exe -m pip install -e ".[dev]"` | `.venv/bin/python -m pip install -e ".[dev]"` |
+| Copiar o `.env` | `Copy-Item .env.example .env` | `cp .env.example .env` |
+| Definir variável | `$env:TARVO_SEM_IA = "1"` | `export TARVO_SEM_IA=1` |
+| Remover variável | `Remove-Item Env:TARVO_SEM_IA` | `unset TARVO_SEM_IA` |
+| Caminhos | `.\dados`, `.\saida` | `./dados`, `./saida` |
+
+Exemplo completo no macOS/Linux, sem chamadas de IA:
+
+```bash
+git clone https://github.com/PriscilaFalcao/barte-challenge-casa-barton.git && cd barte-challenge-casa-barton
+python3 -m venv .venv && .venv/bin/python -m pip install -e ".[dev]"
+TARVO_SEM_IA=1 .venv/bin/python -m tarvo fechar --mes 2026-09 --dados ./dados --saida ./saida --sem-estado
+.venv/bin/python -m tarvo web        # interface em http://127.0.0.1:8000
+```
 
 ## 2. Instalar do zero
 
@@ -158,7 +177,7 @@ Ao contrário do upload web, a linha de comando procura arquivos por **prefixos*
 | Aurora | `05a_*.csv` |
 | Meridiano | `05b_*.ofx` |
 
-O arquivo `06_` é opcional e lido junto com o relatório da Orbe. Se um `id_transacao` for substituído entre arquivos, a regra de seleção e a pendência gerada estão documentadas na seção 5 de [Hipóteses](docs/HIPOTESES.md).
+O arquivo `06_` é opcional e lido junto com o relatório da Orbe. Se um `id_transacao` for substituído entre arquivos, a regra de seleção e a pendência gerada estão documentadas na seção 5 de [Hipóteses](HIPOTESES.md).
 
 Para outro mês, forneça arquivos do mesmo formato e mude `--mes`, `--dados` e `--saida`. Não basta trocar a competência mantendo os dados de setembro: se nem Orbe nem Ponte tiverem linhas do mês solicitado, a execução falha.
 
@@ -186,6 +205,22 @@ Também existem decisões de conta contábil e vínculo EC–CNPJ, além de prom
 ```
 
 O parâmetro `--estado` permite escolher outra pasta nos comandos do terminal. Para operar sobre um fechamento criado pela interface, é necessário apontar para o estado daquele fechamento, e não para o estado padrão do terminal.
+
+### Recuperação de meses anteriores (Atlas)
+
+Regra do financeiro da Tarvo: quando o comercial confirma a taxa de um lojista sem contrato, ela vale desde o começo e o fechamento seguinte fatura o mês que ficou pendente. O fechamento faz isso lendo o histórico:
+
+1. Procura, nos fechamentos de meses anteriores, pendências `SEM_CONTRATO` (a EC do lojista).
+2. Se a EC agora tem contrato na planilha, lê o relatório da Orbe daquele mês, guardado no fechamento anterior, e inclui as linhas desse lojista na comissão e na nota do mês. No rastro elas aparecem com `regra_id` terminado em `+RECUP`, e o `execucao.log` registra "Recuperação: N linha(s) da Orbe de AAAA-MM...".
+3. Linhas já recuperadas por outro fechamento do histórico não entram de novo. Entre vários fechamentos do mesmo mês, vale o marcado como "Fechado"; senão, o mais recente.
+
+Pela **interface**, o histórico é automático (a pasta `data/web/fechamentos`). Pelo **terminal**, aponte a pasta com os fechamentos anteriores (uma subpasta por mês, cada uma com `dados/` e `saida/`):
+
+```bash
+.venv/bin/python -m tarvo fechar --mes 2026-10 --dados ./dados --saida ./saida --historico ./fechamentos
+```
+
+Para a taxa valer desde o começo, a linha do lojista na planilha precisa ter vigência anterior ou igual ao início das vendas (para a Atlas, 10/09/2026); linhas fora da vigência viram pendência em vez de serem faturadas.
 
 ### Histórico de fechamentos
 
@@ -262,14 +297,14 @@ node .\src\tests\test_upload_identification.cjs
 - **Configurações na interface:** a tela de configurações gerais ainda não está integrada. Os defaults ficam em [config](config); a fila permite apenas os tipos de decisão implementados. Corrigir uma taxa ambígua pode exigir corrigir a fonte/configuração, não apenas aprovar a proposta do agente.
 - **Orbe × banco:** não há conciliação parcela a parcela sem a agenda de recebíveis.
 - **Histórico de contratos:** estornos de vendas de agosto dependem do histórico disponível na planilha atual.
-- **Atlas:** sem contrato confirmado, não há comissão, nota ou divergência calculada para ela. Recuperar automaticamente em outubro os valores de setembro após confirmar a taxa ainda não está implementado.
+- **Atlas:** sem contrato confirmado, não há comissão, nota ou divergência calculada para ela. Quando o comercial confirmar a taxa (linha dela na planilha, com a EC), o fechamento seguinte fatura o mês pendente sozinho, desde que consiga ler o histórico (seção "Recuperação de meses anteriores"). Sem histórico, use `recuperacao_pendentes` em [defaults.yaml](src/config/defaults.yaml).
 - **Classificação bancária:** regras genéricas de PIX não comprovam a identidade do beneficiário. Um novo fornecedor pode exigir revisão da regra.
 - **Meridiano:** sem saldo inicial no OFX, não é possível validar toda a cadeia de saldos.
-- **Alertas específicos do case:** alguns alertas configurados para setembro não são detectores genéricos para outubro.
+- **Alertas:** o saldo de recursos para remessas (PIX de lojistas × TEDs à Ponte), a antecipação acima das vendas de lojista sem contrato ou novo (sem vendas em meses anteriores; sem histórico, só o sem contrato), a transferência sem par entre contas e o PIX sem identificação são detectados por regra, em qualquer mês. Alertas sobre um lançamento específico (`alertas_lancamento`) só existem se alguém os configurar, e valem só no mês indicado.
 - **Decisões externas:** o sistema gera a relação de notas, propostas e pendências; não emite nota fiscal, efetua devolução ou envia contestação automaticamente.
 - **Checkpoints e cache:** alterações de código invalidam checkpoints. Chamadas em cache podem aparecer mesmo sem credencial; para uma avaliação isolada, use pastas novas de estado, saída e cache.
 
-Os detalhes e o impacto das premissas estão em [Hipóteses, seção 6](docs/HIPOTESES.md#6-limitações-conhecidas).
+Os detalhes e o impacto das premissas estão em [Hipóteses, seção 6](HIPOTESES.md#6-limitações-conhecidas).
 
 ### Problemas comuns
 
@@ -285,10 +320,9 @@ Os detalhes e o impacto das premissas estão em [Hipóteses, seção 6](docs/HIP
 ## 10. Documentação e evidências do desafio
 
 - [Instruções dos participantes](docs/01_instrucoes_participantes.docx): requisitos originais de entrega e avaliação.
-- [Hipóteses e premissas](docs/HIPOTESES.md): causas, regras confirmadas, decisões assumidas e limitações.
+- [Hipóteses e premissas](HIPOTESES.md): causas, regras confirmadas, decisões assumidas e limitações.
 - [Perguntas e respostas do financeiro](docs/perguntas_slack.md): evidências de descoberta das regras.
 - [PRD](docs/PRD.md) e [checkpoints](docs/CHECKPOINTS.md): planejamento e evolução do escopo; partes descrevem objetivos, não necessariamente funcionalidades já disponíveis.
 - [Histórico de sessões de IA](PROMPTS) e [momentos importantes](PROMPTS/MOMENTOS.md): registros de uso, verificação e correção da IA.
 - [Data pack](dados/00_LEIA-ME.md): descrição das fontes sintéticas; empresas, pessoas e identificadores são fictícios.
 
-**Atenção ao empacotamento da entrega:** o documento do desafio pede `HIPOTESES.md` na raiz. Neste repositório, o documento está em `docs/HIPOTESES.md`; o link acima permite encontrá-lo, mas não substitui essa exigência de localização. Antes do envio final, ajuste essa organização, confira os seis CSVs em `saida/` e a completude dos históricos em `PROMPTS/`. Não inclua credenciais ou dados pessoais nos materiais publicados.

@@ -113,7 +113,7 @@ def test_sem_contrato_is_not_commissioned_and_becomes_pending_with_rastro():
     res, r = _rodar(atlas, sem_contrato={"777": "Atlas"})
     assert res.comissoes == []
     (e,) = res.excecoes
-    assert (e.tipo, e.ref_origem, e.valor_brl, e.quem_decide) == (TipoExcecao.SEM_CONTRATO, "777", D("1.80"), "Diego")
+    assert (e.tipo, e.ref_origem, e.valor_brl, e.quem_decide) == (TipoExcecao.SEM_CONTRATO, "777", D("1.80"), "Comercial")
     assert r.soma(e.id_saida) == D("1.80")
 
 
@@ -168,3 +168,68 @@ def test_out_of_month_lines_are_counted_in_the_ledger():
     calcular_checkout([_tx("TX1", dia=date(2026, 8, 31)), _tx("TX2", dia=date(2026, 10, 1)), _tx("TX3")],
                       Registro.construir(contratos, {}, {}), Resolvedor(contratos), "2026-09", Rastro(), ledger)
     assert ledger.contar("Orbe", "fora do mês") == 2
+
+
+def test_recovered_month_enters_the_closing_only_for_the_listed_ec():
+    """✅ Helena 11h41: taxa confirmada vale desde o começo; o mês seguinte fatura o que ficou pendente."""
+    ago = date(2026, 8, 20)
+    txs = [_tx("TX1", dia=date(2026, 10, 5), bruto="100.00"), _tx("TX2", dia=ago, bruto="200.00"),
+           _tx("TX3", dia=ago, bruto="400.00", ec="999")]
+    contratos = [_contrato(), _contrato(cnpj="22222222000122", ec="999", ref="Taxas!L7", nome="Loja Dois")]
+    sem, _ = _rodar(txs, contratos, mes="2026-10")
+    assert sem.comissoes[0]["comissao_brl"] == D("1.00")  # só outubro
+    res, r = _rodar(txs, contratos, mes="2026-10", recuperar={EC: frozenset({"2026-08"})})
+    por_cnpj = {c["cnpj"]: c["comissao_brl"] for c in res.comissoes}
+    assert por_cnpj[CNPJ] == D("3.00") and "22222222000122" not in por_cnpj  # o EC 999 não foi listado
+    assert {l.tx.id_transacao: l.regra_id for l in res.linhas}["TX2"].endswith("+RECUP")
+    assert r.soma(res.comissoes[0]["id_saida"]) == D("3.00")
+
+
+def test_recovery_does_not_pull_old_lines_of_someone_still_without_contract():
+    txs = [_tx("TX1", dia=date(2026, 8, 20), ec="777", valor_taxa="2.00")]
+    res, _ = _rodar(txs, sem_contrato={"777": "Atlas"}, mes="2026-10", recuperar={"777": frozenset({"2026-08"})})
+    assert res.comissoes == [] and res.excecoes == []
+
+
+# --- alerta de antecipação (✅ Helena P8): lojista sem contrato ou novo, antecipando acima das vendas ---------
+
+def _antecipacao_alta(ec=EC):
+    return [_tx("V1", dia=date(2026, 10, 10), bruto="1000.00", ec=ec),
+            _tx("A1", dia=date(2026, 10, 15), tipo="ANTECIPACAO", mod="", parc=0, bruto="5000.00", ec=ec)]
+
+
+def _alertas(res):
+    return [e for e in res.excecoes if e.tipo == TipoExcecao.ALERTA_ANTECIPACAO]
+
+
+def test_new_merchant_with_contract_gets_the_anticipation_alert():
+    res, r = _rodar(_antecipacao_alta(), mes="2026-10", ecs_com_historico={"outro-ec"})
+    (e,) = _alertas(res)
+    assert "novo (sem vendas em meses anteriores)" in e.motivo and e.valor_brl == D("5000.00")
+    assert e.quem_decide == "Financeiro e Comercial" and r.soma(e.id_saida) == D("5000.00")
+
+
+def test_merchant_with_previous_sales_does_not_get_the_alert_even_if_anticipating_more_than_it_sold():
+    res, _ = _rodar(_antecipacao_alta(), mes="2026-10", ecs_com_historico={EC})
+    assert _alertas(res) == []
+
+
+def test_without_any_history_only_the_merchant_without_contract_is_alerted():
+    res, _ = _rodar(_antecipacao_alta(), mes="2026-10")  # sem histórico: não dá para saber quem é novo
+    assert _alertas(res) == []
+    res, _ = _rodar(_antecipacao_alta("777"), mes="2026-10", sem_contrato={"777": "Atlas"})
+    (e,) = _alertas(res)
+    assert "sem contrato" in e.motivo and "novo" not in e.motivo
+
+
+def test_previous_month_lines_in_the_file_count_as_history():
+    txs = _antecipacao_alta() + [_tx("V0", dia=date(2026, 9, 5), bruto="100.00")]
+    res, _ = _rodar(txs, mes="2026-10")
+    assert _alertas(res) == []  # vendeu em setembro, então não é novo
+
+
+def test_anticipation_within_what_was_sold_is_not_alerted():
+    txs = [_tx("V1", dia=date(2026, 10, 10), bruto="9000.00"),
+           _tx("A1", dia=date(2026, 10, 15), tipo="ANTECIPACAO", mod="", parc=0, bruto="5000.00")]
+    res, _ = _rodar(txs, mes="2026-10", ecs_com_historico={"outro-ec"})
+    assert _alertas(res) == []

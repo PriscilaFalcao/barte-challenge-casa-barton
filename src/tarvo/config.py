@@ -54,6 +54,15 @@ class AlertaLancamento:
 
 
 @dataclass(frozen=True)
+class Recuperacao:
+    """Linhas da Orbe de meses anteriores que entram neste fechamento (✅ Helena 11h41: quando o comercial
+    confirma a taxa da Atlas, ela vale desde o começo e outubro fatura setembro junto)."""
+    ec: str
+    meses: tuple[str, ...]  # AAAA-MM
+    fonte: str
+
+
+@dataclass(frozen=True)
 class ConfigAgentes:
     rotas: dict[TipoExcecao, str] = field(default_factory=dict)  # tipo de exceção -> agente
     limiar: dict[str, Decimal] = field(default_factory=dict)  # agente -> confiança mínima para aplicar
@@ -70,6 +79,7 @@ class Config:
     regras_lancamento: tuple[RegraLancamento, ...] = ()
     conta_provisoria: dict[str, str] = field(default_factory=dict)
     alertas_lancamento: tuple[AlertaLancamento, ...] = ()
+    recuperacao: tuple[Recuperacao, ...] = ()
     quem_decide: dict[TipoExcecao, str] = field(default_factory=dict)
     bloqueantes: frozenset[TipoExcecao] = frozenset()
     agentes: ConfigAgentes = field(default_factory=ConfigAgentes)
@@ -107,6 +117,13 @@ def _alerta(a: dict) -> AlertaLancamento:
                             valor=Decimal(str(a["valor"])), tipo=TipoExcecao(a["tipo"]), motivo=a["motivo"])
 
 
+def _recuperacao(r: dict) -> Recuperacao:
+    meses = tuple(str(m) for m in r.get("meses") or [])
+    if not meses or any(not re.fullmatch(r"\d{4}-\d{2}", m) for m in meses):
+        raise ValueError(f"recuperação do EC {r.get('ec')}: 'meses' precisa listar AAAA-MM")
+    return Recuperacao(ec=str(r["ec"]), meses=meses, fonte=str(r.get("fonte", "")))
+
+
 def _agentes(a: dict) -> ConfigAgentes:
     return ConfigAgentes(
         rotas={TipoExcecao(k): str(v) for k, v in (a.get("rotas") or {}).items()},
@@ -142,6 +159,7 @@ def construir_config(dados: dict) -> Config:
         regras_lancamento=tuple(_regra(r) for r in dados.get("regras_lancamento") or []),
         conta_provisoria={str(k): str(v) for k, v in (dados.get("conta_provisoria") or {}).items()},
         alertas_lancamento=tuple(_alerta(a) for a in dados.get("alertas_lancamento") or []),
+        recuperacao=tuple(_recuperacao(r) for r in dados.get("recuperacao_pendentes") or []),
         quem_decide={TipoExcecao(k): str(v) for k, v in (dados.get("quem_decide") or {}).items()},
         bloqueantes=frozenset(TipoExcecao(t) for t in dados.get("bloqueantes") or []),
         agentes=_agentes(dados.get("agentes") or {}),

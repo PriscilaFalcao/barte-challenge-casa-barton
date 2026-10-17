@@ -140,3 +140,20 @@ def test_real_pack_reads(dados):
     assert (a.saldo_inicial, a.saldo_final) == (D("612334.81"), D("-1920088.60"))
     assert len(m.lancamentos) == 100 and m.saldo_final == D("1320453.26")
     assert (len(plano), sum(c.analitica for c in plano.values())) == (52, 32)
+
+
+def test_aurora_ref_is_the_physical_line_even_with_a_multiline_quoted_field(tmp_path):
+    """✅ Organização: ref_origem é a linha física do arquivo original, contada a partir de 1, com o cabeçalho."""
+    p = tmp_path / "05a.csv"
+    p.write_text("x;;;;\n" * 3 + CAB_AURORA
+                 + '01/09/2026;"TED\nQUEBRADA";;100,00;1.100,00\n'
+                 + "02/09/2026;TAR PACOTE;;-50,00;1.050,00\n", encoding="utf-8")
+    lan = ler_aurora(p).lancamentos
+    assert [l.ref_origem for l in lan] == ["L9", "L11"]  # o 1º lançamento ocupa as linhas 9 e 10
+    assert [l.descricao for l in lan][1] == "TAR PACOTE"
+
+
+def test_aurora_ref_with_crlf_file_matches_the_editor_line_number(tmp_path):
+    p = tmp_path / "05a.csv"
+    p.write_bytes(("x;;;;\n" * 3 + CAB_AURORA + "01/09/2026;TED;;1,00;1.001,00\n").replace("\n", "\r\n").encode())
+    assert ler_aurora(p).lancamentos[0].ref_origem == "L9"

@@ -61,7 +61,7 @@ def test_duplicate_counts_once_and_goes_to_ponte_list():
     res, r = _rodar([a, b])
     assert res.comissoes[0]["comissao_brl"] == D("410.94")
     (e,) = res.excecoes
-    assert (e.tipo, e.ref_origem, e.valor_brl, e.quem_decide) == (TipoExcecao.CONTESTACAO_PONTE, f"{CNPJ}-202609", D("410.94"), "Helena")
+    assert (e.tipo, e.ref_origem, e.valor_brl, e.quem_decide) == (TipoExcecao.CONTESTACAO_PONTE, f"{CNPJ}-202609", D("410.94"), "Financeiro")
     assert r.soma(e.id_saida) == D("410.94") and "duplicada" in e.motivo and "PC-0162" in e.motivo
     assert len([l for l in r.linhas() if l.id_saida.startswith("COM-REM")]) == 1
 
@@ -143,7 +143,7 @@ def test_unresolved_cnpj_is_commissioned_and_pending_for_comercial():
     assert res.divergencias == []  # sem contrato, a divergência não é avaliada
     (e,) = res.excecoes
     assert (e.tipo, e.ref_origem, e.valor_brl, e.quem_decide) == (
-        TipoExcecao.ENTIDADE_NAO_RESOLVIDA, "99999999000199", D("50.00"), "Diego")
+        TipoExcecao.ENTIDADE_NAO_RESOLVIDA, "99999999000199", D("50.00"), "Comercial")
     assert r.soma(e.id_saida) == D("50.00") and r.soma(c["id_saida"]) == D("50.00")
 
 

@@ -91,43 +91,43 @@ conta_provisoria:
 
 # Alertas sobre um lançamento específico, que nenhuma regra genérica detecta. Só valem no `mes` indicado,
 # e o lançamento tem que casar em banco, ref, data e valor: se não casar, a execução falha (config errada).
-# Não mudam a conta: só abrem a pendência.
-alertas_lancamento:
-  - mes: "2026-09"
-    banco: AURORA
-    ref: L34
-    data: 2026-09-10
-    valor: "-112220.15"
-    tipo: REPASSE_ATIPICO
-    motivo: "PIX de R$ 112.220,15 à Atlas Idiomas em 10/09, primeiro dia de operação dela, com R$ 1.247,52 de líquido na Orbe até a data. A Atlas não tem contrato. Pela regra o repasse é do que a Orbe já liquidou; na prática há pagamento antecipado pela conta garantida, sem limite escrito (Helena 10h59). Confirmar quem autorizou. Ver também o alerta de antecipação da Atlas."
-  - mes: "2026-09"
-    banco: MERIDIANO
-    ref: MRD2026090425
-    data: 2026-09-17
-    valor: "18240.00"
-    tipo: CONFERIR_MES_SEGUINTE
-    motivo: "PIX de R$ 18.240,00 da Ponte Aérea Estudantil sem operação na Ponte em setembro: é dinheiro de uma remessa que sai em outubro (Helena, resposta ao Mateus). Fica em Recursos de lojistas para remessas; conferir a operação no relatório da Ponte de outubro."
+# Não mudam a conta: só abrem a pendência. Vazio por padrão: nada do que a Helena respondeu para setembro fica
+# preso a um lançamento (o PIX de R$ 18.240 é detectado pelo saldo de recursos para remessas; o repasse à Atlas
+# já aparece no alerta de antecipação, e a Helena disse que o repasse segue normal).
+# Exemplo:
+#   - {mes: "2026-10", banco: AURORA, ref: L12, data: 2026-10-05, valor: "-1000.00", tipo: REPASSE_ATIPICO, motivo: "..."}
+alertas_lancamento: []
+
+# Linhas da Orbe de meses anteriores que entram no fechamento (✅ Helena 11h41: quando o comercial confirmar a
+# taxa de um lojista sem contrato, ela vale desde o começo e o fechamento seguinte fatura o mês que ficou
+# pendente). Normalmente NÃO precisa configurar nada: o fechamento lê o histórico (interface web, ou
+# `fechar --historico PASTA` no terminal) e recupera sozinho as pendências SEM_CONTRATO cujo EC já tem contrato
+# na planilha (estado/historico.py). Esta chave é o plano B, para quem roda sem histórico: (1) o comercial
+# adiciona a linha do lojista na planilha, com a EC; (2) pôr o relatório da Orbe do mês pendente junto com o do
+# mês atual em `dados/`; (3) descomentar abaixo. O EC precisa ter contrato, senão as linhas continuam fora.
+recuperacao_pendentes: []
+#  - {ec: "1076801732", meses: ["2026-09"], fonte: "Helena 11h41: taxa vale desde 10/09"}
 
 # ---------------------------------------------------------------------------------------------------------
 # Pendências (PRD 7.8 e 8.5). `quem_decide` por tipo: ✅ cadastro e contrato com o comercial (Casa Barton
 # 11h01); devolução ao lojista e alerta de antecipação com a Helena e o comercial. Tipo ausente aqui usa o
 # default do código. `bloqueantes`: tipos que mudam comissão ou nota; o mês só fecha sem eles (gate G4).
 quem_decide:
-  DIVERGENCIA_ORBE: Helena
-  CONTESTACAO_PONTE: Helena
-  COMISSAO_NAO_POSITIVA: Helena
-  SEM_CONTRATO: Diego
-  DEVOLUCAO_LOJISTA: Helena e Diego
-  ALERTA_ANTECIPACAO: Helena e Diego
-  LANCAMENTO_SEM_ORIGEM: Helena
-  REPASSE_ATIPICO: Helena
-  DEVOLUCAO_PIX: Helena
-  ENTIDADE_NAO_RESOLVIDA: Diego
-  CONTRATO_AMBIGUO: Diego
-  CLASSIFICACAO_BAIXA_CONFIANCA: Helena
-  CONFERIR_MES_SEGUINTE: Helena
-  STATUS_PONTE_DESCONHECIDO: Helena
-  LINHA_ORBE_SUBSTITUIDA: Helena
+  DIVERGENCIA_ORBE: Financeiro
+  CONTESTACAO_PONTE: Financeiro
+  COMISSAO_NAO_POSITIVA: Financeiro
+  SEM_CONTRATO: Comercial
+  DEVOLUCAO_LOJISTA: Financeiro e Comercial
+  ALERTA_ANTECIPACAO: Financeiro e Comercial
+  LANCAMENTO_SEM_ORIGEM: Financeiro
+  REPASSE_ATIPICO: Financeiro
+  DEVOLUCAO_PIX: Financeiro
+  ENTIDADE_NAO_RESOLVIDA: Comercial
+  CONTRATO_AMBIGUO: Comercial
+  CLASSIFICACAO_BAIXA_CONFIANCA: Financeiro
+  CONFERIR_MES_SEGUINTE: Financeiro
+  STATUS_PONTE_DESCONHECIDO: Financeiro
+  LINHA_ORBE_SUBSTITUIDA: Financeiro
 
 bloqueantes: [ENTIDADE_NAO_RESOLVIDA, CONTRATO_AMBIGUO, STATUS_PONTE_DESCONHECIDO]
 

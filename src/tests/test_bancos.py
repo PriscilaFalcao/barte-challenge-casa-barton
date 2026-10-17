@@ -104,13 +104,15 @@ def test_ted_to_ponte_reconciles_with_operations_of_the_day():
     ops = [op("PC-1", dia=dia), op("PC-2", dia=dia), op("PC-2", dia=dia, linha=7), op("PC-3", dia=date(2026, 9, 11))]
     ops = [o.__class__(**{**o.__dict__, "valor_brl": D("1000.00"), "iof": D("3.80")}) for o in ops]
     res, _ = rodar([lan("M1", "TED ENVIADA PONTE CAMBIO SA LIQ OPERACOES", "-2007.60", dia, "MERIDIANO")], ops=ops)
-    assert res.conciliadas == 1 and res.excecoes == []  # a duplicata PC-2 conta uma vez
+    assert res.conciliadas == 1  # a duplicata PC-2 conta uma vez
+    # sem PIX de lojista no mês, a TED liquida recursos de antes: só a conferência do saldo, sem outra pendência
+    assert [e.ref_origem for e in res.excecoes] == ["RECURSOS-REMESSAS-202609"]
 
 
 def test_ted_to_ponte_that_does_not_match_is_pending():
     res, _ = rodar([lan("M1", "TED ENVIADA PONTE CAMBIO SA LIQ OPERACOES", "-50.00", banco="MERIDIANO")])
-    (e,) = res.excecoes
-    assert e.tipo == TipoExcecao.LANCAMENTO_SEM_ORIGEM and "não bate" in e.motivo
+    (e,) = [e for e in res.excecoes if e.tipo == TipoExcecao.LANCAMENTO_SEM_ORIGEM]
+    assert "não bate" in e.motivo
     assert por_ref(res)["M1"]["conta_codigo"] == "2.1.02.001"
 
 
@@ -121,7 +123,7 @@ def test_transfers_pair_by_value_and_unpaired_outflow_is_checked_next_month():
     res, _ = rodar(lans)
     (e,) = res.excecoes
     assert (e.tipo, e.ref_origem, e.valor_brl, e.quem_decide) == (
-        TipoExcecao.CONFERIR_MES_SEGUINTE, "L92", D("-300000.00"), "Helena")
+        TipoExcecao.CONFERIR_MES_SEGUINTE, "L92", D("-300000.00"), "Financeiro")
     assert por_ref(res)["L92"]["conta_codigo"] == "1.1.09.001"
 
 
@@ -168,3 +170,26 @@ def test_out_of_month_lines_are_left_out():
 def test_i_c1_rejects_synthetic_account():
     with pytest.raises(ValidationError, match="I-C1"):
         validar_i_c1([{"id_saida": "LAN-AUR-L1", "conta_codigo": "1.1"}], PLANO)
+
+
+def test_pix_surplus_over_teds_points_to_the_single_pix_that_explains_it():
+    regras = REGRAS + (regra("MER-PIX-LOJISTA", "MERIDIANO", "^pix receb ", "2.1.02.001", "credito"),)
+    dia = date(2026, 9, 10)
+    o = op("PC-1", dia=dia)
+    ops = [o.__class__(**{**o.__dict__, "valor_brl": D("1000.00"), "iof": D("3.80")})]
+    res, rastro = rodar([lan("M1", "PIX RECEB LOJA A", "1003.80", dia, "MERIDIANO"),
+                         lan("M2", "TED ENVIADA PONTE CAMBIO SA LIQ OPERACOES", "-1003.80", dia, "MERIDIANO"),
+                         lan("M3", "PIX RECEB LOJA B", "18240.00", dia, "MERIDIANO")], regras=regras, ops=ops)
+    (e,) = res.excecoes
+    assert (e.tipo, e.ref_origem, e.valor_brl, e.quem_decide) == (
+        TipoExcecao.CONFERIR_MES_SEGUINTE, "M3", D("18240.00"), "Financeiro")
+    assert rastro.soma(e.id_saida) == D("18240.00")
+
+
+def test_pix_surplus_without_a_single_match_is_checked_as_a_set():
+    regras = REGRAS + (regra("MER-PIX-LOJISTA", "MERIDIANO", "^pix receb ", "2.1.02.001", "credito"),)
+    res, rastro = rodar([lan("M1", "PIX RECEB LOJA A", "100.00", banco="MERIDIANO"),
+                         lan("M2", "PIX RECEB LOJA B", "50.00", banco="MERIDIANO")], regras=regras)
+    (e,) = res.excecoes
+    assert (e.ref_origem, e.valor_brl) == ("RECURSOS-REMESSAS-202609", D("150.00"))
+    assert rastro.soma(e.id_saida) == D("150.00")

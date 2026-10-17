@@ -45,7 +45,7 @@ def test_total_matches_independent_computation_from_raw_rows(corrida):
 def test_duplicate_is_counted_once_and_listed_for_ponte(corrida):
     res, rastro, _ = corrida
     dup = [e for e in res.excecoes if "duplicada" in e.motivo]
-    assert [(e.ref_origem, e.valor_brl, e.quem_decide) for e in dup] == [("50900987000179-202609", D("410.94"), "Helena")]
+    assert [(e.ref_origem, e.valor_brl, e.quem_decide) for e in dup] == [("50900987000179-202609", D("410.94"), "Financeiro")]
     assert "PC-0926-0162" in dup[0].motivo
     comissao_op = [l for l in rastro.linhas() if l.ref_origem == "PC-0926-0162" and l.id_saida.startswith("COM-REM")]
     assert len(comissao_op) == 1 and comissao_op[0].valor == D("410.94")

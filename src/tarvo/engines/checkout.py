@@ -70,14 +70,15 @@ def _pendencia(res: ResultadoCheckout, rastro: Rastro, tipo: TipoExcecao, ref: s
 
 
 def _alerta_antecipacao(res: ResultadoCheckout, rastro: Rastro, ec: str, nome: str | None,
-                        txs: list[OrbeTx]) -> None:
+                        txs: list[OrbeTx], sem_contrato: bool, novo: bool) -> None:
     """✅ Helena (P8): antecipação acima do que o lojista vendeu "não deveria acontecer"; alerta para ela e o
-    comercial, "ainda mais com a Atlas sem contrato". ⚠️ Só para lojista sem contrato: nos demais, antecipação
-    acima das vendas do mês é normal (antecipam vendas de meses anteriores, que não estão no arquivo).
-    Valor = antecipado líquido no mês (antecipações − reversões), com cada linha no rastro."""
+    comercial, "ainda mais com a Atlas sem contrato", e o que a preocupa é "lojista novo, sem histórico,
+    antecipando alto". ⚠️ Critério nosso (ela deixou a escolha): alerta quando o lojista está sem contrato ou é
+    novo (sem vendas em meses anteriores) E antecipou, em algum dia, mais do que vendeu no mês até o dia. Nos
+    demais, antecipar acima das vendas do mês é normal (antecipam vendas de meses anteriores, fora do arquivo).
+    Dispara pelo pico (o risco existiu quando o dinheiro foi adiantado) e cita as reversões. Valor = antecipado
+    líquido no mês (antecipações − reversões), com cada linha no rastro. Não muda nenhum número."""
     antecip = [t for t in txs if t.tipo in ("ANTECIPACAO", "REVERSAO_ANTECIPACAO")]
-    if not antecip:
-        return
     pico = None  # (dia, antecipado no dia, vendas líquidas até o dia)
     for dia in sorted({t.data_movimento for t in antecip if t.tipo == "ANTECIPACAO"}):
         no_dia = sum((t.valor_bruto for t in antecip if t.tipo == "ANTECIPACAO" and t.data_movimento == dia),
@@ -86,13 +87,17 @@ def _alerta_antecipacao(res: ResultadoCheckout, rastro: Rastro, ec: str, nome: s
                      Decimal("0"))
         if no_dia > vendas and (pico is None or no_dia - vendas > pico[1] - pico[2]):
             pico = (dia, no_dia, vendas)
+    if pico is None:
+        return
     liquido = sum((t.valor_bruto for t in antecip), Decimal("0"))
+    quem = ("novo e sem contrato" if sem_contrato and novo else "sem contrato" if sem_contrato
+            else "novo (sem vendas em meses anteriores)")
     detalhe = (f" Em {pico[0].strftime('%d/%m')} antecipou R$ {fmt(pico[1])} com R$ {fmt(pico[2])} de vendas "
-               f"líquidas no mês até o dia." if pico else "")
+               f"líquidas no mês até o dia.")
     exc = Excecao.nova(
         TipoExcecao.ALERTA_ANTECIPACAO, ec, liquido,
-        f"{nome or 'Lojista'} (EC {ec}) sem contrato antecipou R$ {fmt(liquido)} líquidos no mês "
-        f"({len(antecip)} linha(s), reversões abatidas).{detalhe} Não há trava de antecipação; avisar a Helena "
+        f"{nome or 'Lojista'} (EC {ec}), {quem}, antecipou R$ {fmt(liquido)} líquidos no mês "
+        f"({len(antecip)} linha(s), reversões abatidas).{detalhe} Não há trava de antecipação; avisar o financeiro "
         f"e o comercial.")
     res.excecoes.append(exc)
     for t in sorted(antecip, key=lambda t: t.id_transacao):
@@ -100,7 +105,18 @@ def _alerta_antecipacao(res: ResultadoCheckout, rastro: Rastro, ec: str, nome: s
 
 
 def calcular_checkout(txs: list[OrbeTx], registro: Registro, resolvedor: Resolvedor,
-                      mes: str, rastro: Rastro, ledger: Ledger | None = None) -> ResultadoCheckout:
+                      mes: str, rastro: Rastro, ledger: Ledger | None = None,
+                      recuperar: dict[str, frozenset[str]] | None = None,
+                      ecs_com_historico: set[str] | None = None) -> ResultadoCheckout:
+    """`recuperar`: EC -> meses (AAAA-MM) cujas linhas da Orbe entram neste fechamento além das do próprio mês.
+    ✅ Helena 11h41: taxa confirmada pelo comercial vale desde o começo, e o mês seguinte fatura o que ficou
+    pendente. Só vale se o EC já tem contrato; sem contrato, as linhas continuam fora (pendência SEM_CONTRATO)."""
+    recuperar = recuperar or {}
+
+    def do_fechamento(t: OrbeTx) -> bool:
+        return no_mes(t.data_movimento, mes) or t.data_movimento.strftime("%Y-%m") in recuperar.get(
+            t.cod_estabelecimento, ())
+
     res = ResultadoCheckout()
     sem_contrato: dict[str, list[OrbeTx]] = collections.defaultdict(list)
     nao_resolvidas: dict[str, list[OrbeTx]] = collections.defaultdict(list)
@@ -110,12 +126,14 @@ def calcular_checkout(txs: list[OrbeTx], registro: Registro, resolvedor: Resolve
 
     # Ordem fixa: o resultado não depende da ordem das linhas de entrada.
     for t in txs:
-        if not no_mes(t.data_movimento, mes) and ledger is not None:
+        if not do_fechamento(t) and ledger is not None:
             ledger.ignorar("Orbe", "fora do mês", t.id_transacao)
-    for tx in sorted((t for t in txs if no_mes(t.data_movimento, mes)), key=lambda t: t.id_transacao):
+    for tx in sorted((t for t in txs if do_fechamento(t)), key=lambda t: t.id_transacao):
         entidade = registro.classificar(ec=tx.cod_estabelecimento)
+        recuperada = not no_mes(tx.data_movimento, mes)
         if entidade.situacao == "SEM_CONTRATO":
-            sem_contrato[tx.cod_estabelecimento].append(tx)
+            if not recuperada:  # linha de mês anterior de quem continua sem contrato não é deste fechamento
+                sem_contrato[tx.cod_estabelecimento].append(tx)
             continue
         if entidade.situacao == "NAO_RESOLVIDO":
             nao_resolvidas[tx.cod_estabelecimento].append(tx)
@@ -129,7 +147,8 @@ def calcular_checkout(txs: list[OrbeTx], registro: Registro, resolvedor: Resolve
             continue
         # C1/C2: base é o valor bruto assinado × taxa contratada; nunca o valor_taxa da Orbe.
         comissao = round_money(tx.valor_bruto * taxa.pct / 100)
-        linha = LinhaCheckout(tx, loj.cnpj14, produto, componente, taxa, _regra(tx, taxa, mes), comissao)
+        regra = _regra(tx, taxa, mes) + ("+RECUP" if recuperada else "")
+        linha = LinhaCheckout(tx, loj.cnpj14, produto, componente, taxa, regra, comissao)
         res.linhas.append(linha)
         nomes[loj.cnpj14] = loj.nome_canonico
         totais[loj.cnpj14] += comissao
@@ -149,8 +168,22 @@ def calcular_checkout(txs: list[OrbeTx], registro: Registro, resolvedor: Resolve
                    f"informar a taxa. Valor = soma da taxa cobrada pela Orbe nas {len(grupo)} linhas (só dimensiona). "
                    f"Quando o comercial confirmar, a taxa vale desde o início e estas linhas entram no fechamento "
                    f"daquele mês: puxar do rastro deste mês.")
-    for ec, grupo in sorted(sem_contrato.items()):
-        _alerta_antecipacao(res, rastro, ec, registro.classificar(ec=ec).nome, grupo)
+    anteriores = {t.cod_estabelecimento for t in txs
+                  if t.tipo == "VENDA" and t.data_movimento.strftime("%Y-%m") < mes}
+    conhecidos = None if ecs_com_historico is None and not anteriores else (ecs_com_historico or set()) | anteriores
+    do_mes: dict[str, list[OrbeTx]] = collections.defaultdict(list)
+    for t in txs:
+        if no_mes(t.data_movimento, mes):
+            do_mes[t.cod_estabelecimento].append(t)
+    for ec, grupo in sorted(do_mes.items()):
+        entidade = registro.classificar(ec=ec)
+        if entidade.situacao == "NAO_RESOLVIDO":
+            continue
+        sem = entidade.situacao == "SEM_CONTRATO"
+        novo = conhecidos is not None and ec not in conhecidos
+        if sem or novo:
+            nome = entidade.nome if sem else entidade.lojista.nome_canonico
+            _alerta_antecipacao(res, rastro, ec, nome, grupo, sem, novo)
     for ec, grupo in sorted(nao_resolvidas.items()):
         _pendencia(res, rastro, TipoExcecao.ENTIDADE_NAO_RESOLVIDA, ec, grupo,
                    f"EC {ec} não está no cadastro de lojistas ({len(grupo)} linhas, "

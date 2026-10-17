@@ -41,7 +41,20 @@ def _valor(texto: str, onde: str) -> Decimal | None:
 
 def ler_aurora(path: Path, ledger: Ledger | None = None, arquivo: str = ARQUIVO) -> Extrato:
     texto = Path(path).read_bytes().decode("utf-8-sig")
-    linhas = list(csv.reader(io.StringIO(texto), delimiter=";"))
+    # ref_origem = linha física do arquivo original, contada a partir de 1, com o cabeçalho do banco e a linha de
+    # colunas (✅ orientação da organização). Não é o índice do registro CSV: um campo entre aspas que ocupe
+    # mais de uma linha faria os dois divergirem; `line_num` conta as linhas físicas lidas.
+    leitor = csv.reader(io.StringIO(texto), delimiter=";")
+    linhas: list[list[str]] = []
+    inicio: list[int] = []  # linha física em que cada registro começa
+    while True:
+        antes = leitor.line_num
+        try:
+            registro = next(leitor)
+        except StopIteration:
+            break
+        linhas.append(registro)
+        inicio.append(antes + 1)
     cab = next((i for i, l in enumerate(linhas) if l and norm_texto(l[0]) == "data"
                 and any(norm_texto(c) == "lancamento" for c in l)), None)
     if cab is None:
@@ -59,7 +72,7 @@ def ler_aurora(path: Path, ledger: Ledger | None = None, arquivo: str = ARQUIVO)
     saldo_inicial: Decimal | None = None
     saldo_final: Decimal | None = None
     saldo: Decimal | None = None
-    for i, linha in enumerate(linhas[cab + 1:], start=cab + 2):
+    for i, linha in zip(inicio[cab + 1:], linhas[cab + 1:]):
         if not any(c.strip() for c in linha):
             continue
         ref = f"L{i}"

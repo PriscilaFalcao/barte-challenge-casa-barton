@@ -107,7 +107,7 @@ def test_unparseable_vigencia_raises_exception_and_line_is_unusable(tmp_path):
     (c,), exc = ler_taxas(_xlsx(tmp_path, [l]))
     assert not c.vigencia_valida
     assert [e.tipo for e in exc] == [TipoExcecao.CONTRATO_AMBIGUO]
-    assert exc[0].ref_origem == "Taxas!L6" and exc[0].quem_decide == "Diego"
+    assert exc[0].ref_origem == "Taxas!L6" and exc[0].quem_decide == "Comercial"
 
 
 def test_inactive_without_vigencia_is_unusable_without_exception(tmp_path):

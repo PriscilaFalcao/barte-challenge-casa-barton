@@ -105,6 +105,7 @@ def classificar_lancamentos(
             liquidacao_dia[o.data_contratacao] += o.valor_brl + (o.iof or Decimal("0"))
 
     classificados: list[tuple[Lancamento, RegraLancamento | None]] = []
+    recursos: list[Lancamento] = []  # PIX de lojistas e TEDs à Ponte: formam o saldo de recursos para remessas
     for l in do_mes:
         regra = _regra_de(l, regras)
         classificados.append((l, regra))
@@ -141,8 +142,10 @@ def classificar_lancamentos(
         rastro.add(id_saida, l.arquivo, l.ref_origem, l.valor, "", "", regra_id)
         if regra_id in (REGRA_PIX_LOJISTA, REGRA_TED_PONTE):
             res.saldo_recursos_remessa += l.valor
+            recursos.append(l)
 
     _parear_transferencias(classificados, pendencia)
+    _saldo_recursos_remessa(res, recursos, mes, rastro, pendencia)
     _aplicar_alertas(do_mes, alertas, mes, pendencia)
     res.excecoes.sort(key=lambda e: e.id_saida)
     return res
@@ -169,6 +172,38 @@ def _parear_transferencias(classificados, pendencia) -> None:
                   f"TED de mesma titularidade de R$ {fmt(e.valor)} em {e.data.strftime('%d/%m/%Y')} sem transferência "
                   f"correspondente no Aurora deste mês. Pode ser a transferência do fim do mês anterior: conferir "
                   f"com a pendência de conferência do mês anterior.", REGRA_TRANSF_ENTRADA)
+
+
+def _saldo_recursos_remessa(res: ResultadoBancos, recursos: list[Lancamento], mes: str, rastro: Rastro,
+                            pendencia) -> None:
+    """Σ PIX recebidos de lojistas + Σ TEDs à Ponte (negativas) no mês. Sobra de PIX = remessa que sai no mês
+    seguinte (✅ Helena, resposta ao Mateus: "dinheiro de uma remessa que ainda não foi feita"); falta = TED
+    liquidando recursos recebidos antes. Nos dois casos fica no passivo e vira conferência, sem alterar comissão.
+    Se um único PIX explica a sobra, a pendência aponta para ele (FITID); senão, para o conjunto."""
+    saldo = res.saldo_recursos_remessa
+    if saldo == 0:
+        return
+    if saldo > 0:
+        unicos = [l for l in recursos if l.valor == saldo and l.valor > 0]
+        if len(unicos) == 1:
+            (l,) = unicos
+            pendencia(TipoExcecao.CONFERIR_MES_SEGUINTE, l,
+                      f"PIX de R$ {fmt(saldo)} em {l.data.strftime('%d/%m/%Y')} ({l.descricao}) sem operação da "
+                      f"Ponte que o explique: é a sobra de PIX de lojistas sobre as TEDs à Ponte no mês. Pelo "
+                      f"critério do financeiro, é dinheiro de remessa que sai no mês seguinte. Fica em Recursos de "
+                      f"lojistas para remessas; conferir a operação no relatório da Ponte do mês seguinte.",
+                      REGRA_PIX_LOJISTA)
+            return
+        motivo = (f"PIX de lojistas superam as TEDs à Ponte em R$ {fmt(saldo)} no mês e nenhum PIX isolado "
+                  f"explica a sobra. Provável remessa que sai no mês seguinte; fica em Recursos de lojistas para "
+                  f"remessas. Conferir no relatório da Ponte do mês seguinte.")
+    else:
+        motivo = (f"TEDs à Ponte superam os PIX de lojistas em R$ {fmt(-saldo)} no mês: provável liquidação de "
+                  f"recursos recebidos no mês anterior (conferir com a pendência de conferência do mês anterior).")
+    exc = Excecao.nova(TipoExcecao.CONFERIR_MES_SEGUINTE, f"RECURSOS-REMESSAS-{mes.replace('-', '')}", saldo, motivo)
+    res.excecoes.append(exc)
+    for l in recursos:
+        rastro.add(exc.id_saida, l.arquivo, l.ref_origem, l.valor, "", "", "SALDO-REMESSAS")
 
 
 def _aplicar_alertas(do_mes: list[Lancamento], alertas: tuple[AlertaLancamento, ...], mes: str, pendencia) -> None:

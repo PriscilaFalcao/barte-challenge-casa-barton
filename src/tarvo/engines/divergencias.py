@@ -45,6 +45,7 @@ def calcular_divergencias(linhas: list[LinhaCheckout], rastro: Rastro, mes: str,
     nomes = nomes or {}
     res = ResultadoDivergencias()
     grupos: dict[tuple[str, str], list[tuple[LinhaCheckout, Decimal]]] = collections.defaultdict(list)
+    cobrado: dict[str, Decimal] = {}
     for l in sorted(linhas, key=lambda l: l.tx.id_transacao):
         aplicada, contratada = l.tx.taxa_aplicada_pct, l.taxa.pct
         if aplicada == contratada:
@@ -62,6 +63,10 @@ def calcular_divergencias(linhas: list[LinhaCheckout], rastro: Rastro, mes: str,
         })
         rastro.add(id_saida, l.tx.arquivo, ref, diferenca, l.componente, fmt_pct(contratada), "D1")
         grupos[(l.cnpj14, natureza)].append((l, diferenca))
+        if natureza == ISENCAO:
+            # ✅ Helena 12h50 e 15h55: a devolução é o que a Orbe descontou de fato (valor_taxa) menos a
+            # comissão contratada; a diferença para a fórmula da divergência é o truncamento da Orbe.
+            cobrado[l.tx.id_transacao] = l.tx.valor_taxa - l.comissao
 
     competencia = mes.replace("-", "")
     for (cnpj, natureza), itens in sorted(grupos.items()):
@@ -80,10 +85,19 @@ def calcular_divergencias(linhas: list[LinhaCheckout], rastro: Rastro, mes: str,
         else:
             tipo = TipoExcecao.DIVERGENCIA_ORBE
             motivo = (f"Orbe aplicou taxa diferente da contratada: {resumo} Cobrar o líquido da Orbe e "
-                      f"devolver ao lojista é decisão da Helena.")
+                      f"devolver ao lojista é decisão do financeiro.")
+        valores = {l.tx.id_transacao: (cobrado[l.tx.id_transacao] if natureza == ISENCAO else d) for l, d in itens}
+        if natureza == ISENCAO:
+            devolver = sum(valores.values(), Decimal("0"))
+            motivo = (motivo.replace(f"líquido R$ {fmt(liquido)}.",
+                                     f"líquido pela fórmula R$ {fmt(liquido)}.")
+                      + f" Valor da devolução = o que a Orbe descontou de fato (valor_taxa) menos a comissão "
+                        f"contratada: R$ {fmt(devolver)}; a diferença para a fórmula é o truncamento da Orbe.")
+            liquido = devolver
         exc = Excecao.nova(tipo, f"{cnpj}-{competencia}", liquido, motivo)
         res.excecoes.append(exc)
         for l, d in itens:
-            rastro.add(exc.id_saida, l.tx.arquivo, l.tx.id_transacao, d, l.componente, fmt_pct(l.taxa.pct), "D3")
+            rastro.add(exc.id_saida, l.tx.arquivo, l.tx.id_transacao, valores[l.tx.id_transacao], l.componente,
+                       fmt_pct(l.taxa.pct), "D3")
     res.excecoes.sort(key=lambda e: e.id_saida)
     return res

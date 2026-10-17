@@ -63,16 +63,15 @@ def test_all_21_teds_to_ponte_match_the_operations_of_the_day(corrida):
     assert res.conciliadas == 21
 
 
-def test_bank_pendings_are_the_five_known_cases(corrida):
+def test_bank_pendings_are_the_four_known_cases(corrida):
     res, rastro, _ = corrida
     assert {(e.tipo, e.ref_origem): e.valor_brl for e in res.excecoes} == {
         (TipoExcecao.LANCAMENTO_SEM_ORIGEM, "L50"): D("7350.00"),
         (TipoExcecao.DEVOLUCAO_PIX, "L65"): D("12400.00"),
-        (TipoExcecao.REPASSE_ATIPICO, "L34"): D("-112220.15"),
         (TipoExcecao.CONFERIR_MES_SEGUINTE, "L92"): D("-300000.00"),
         (TipoExcecao.CONFERIR_MES_SEGUINTE, "MRD2026090425"): D("18240.00"),
     }
-    assert {e.quem_decide for e in res.excecoes} == {"Helena"}
+    assert {e.quem_decide for e in res.excecoes} == {"Financeiro"}
     for e in res.excecoes:
         assert rastro.soma(e.id_saida) == e.valor_brl
 

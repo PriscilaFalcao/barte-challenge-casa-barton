@@ -26,8 +26,10 @@ def test_web_summary_matches_real_pipeline_outputs(dados, tmp_path):
     assert summary["divergences_count"] == 233
     assert summary["notes_count"] == 21
     assert summary["bank_entries_count"] == 184
-    assert summary["pending_count"] == 18
-    assert summary["pending_by_decider"] == {"Helena e Diego": 2, "Helena": 15, "Diego": 1}
+    assert summary["pending_count"] == 17
+    assert summary["pending_by_decider"] == {"Financeiro e Comercial": 2, "Financeiro": 14, "Comercial": 1}
+    assert summary["alert_count"] == 1 and summary["alert_by_decider"] == {"Financeiro e Comercial": 1}  # antecipação da Atlas
+    assert summary["pending_only_by_decider"] == {"Financeiro e Comercial": 1, "Financeiro": 14, "Comercial": 1}
     assert summary["reconciles"] is True
 
 
@@ -123,7 +125,7 @@ def test_web_end_to_end_events_decisions_and_close_gate(dados, web_server):
     assert status == 200 and activity["execution"]["status"] == "CONCLUIDA"
     assert [event["etapa"] for event in activity["events"]][-2:] == ["agentes", "consolidacao"]
     status, queue = _http_json(f"{web_server}/api/closures/{closure_id}/queue")
-    assert status == 200 and queue["open_count"] == 18 and queue["blocking_count"] == 0
+    assert status == 200 and queue["open_count"] == 17 and queue["blocking_count"] == 0
 
     status, decision = _http_json(
         f"{web_server}/api/closures/{closure_id}/decisions",
@@ -168,7 +170,7 @@ def test_web_end_to_end_events_decisions_and_close_gate(dados, web_server):
     assert status == 200 and closed["status"] == "closed" and closed["closed"] is True
     assert closed["closure_record"]["files_sha256"]["pendencias.csv"] == hashlib.sha256(original_pending).hexdigest()
     status, table = _http_json(f"{web_server}/api/closures/{closure_id}/tables/pendencias")
-    assert status == 200 and len(table["rows"]) == 18
+    assert status == 200 and len(table["rows"]) == 17
 
     status, history = _http_json(f"{web_server}/api/closures")
     assert status == 200
@@ -218,3 +220,12 @@ def test_web_limpar_campo_remove_os_arquivos_e_bloqueia_a_validacao(dados, web_s
     assert status == 200 and "orbe" not in estado["files"]
     status, erro = _http_json(f"{web_server}/api/closures/{closure['id']}/validate", method="POST")
     assert status == 409 and "Orbe" in erro["error"]
+
+
+def test_alert_types_of_the_front_match_the_backend():
+    import re
+    from pathlib import Path
+    from tarvo.core.excecoes import TIPOS_ALERTA
+    js = (Path(__file__).resolve().parents[1] / "tarvo" / "web" / "app.js").read_text(encoding="utf-8")
+    declarado = re.search(r"ALERT_TYPES = new Set\(\[(.*?)\]\)", js).group(1)
+    assert set(re.findall(r'"([A-Z_]+)"', declarado)) == set(TIPOS_ALERTA)

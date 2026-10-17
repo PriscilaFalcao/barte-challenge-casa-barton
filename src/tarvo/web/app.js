@@ -94,7 +94,8 @@ function renderSummary(target, summary) {
     ["Divergências", summary.divergences_total, `${summary.divergences_count} itens encontrados`, false],
     ["Notas a emitir", summary.notes_total, `${summary.notes_count} notas no período`, false],
     ["Lançamentos classificados", summary.bank_entries_count.toLocaleString("pt-BR"), "Extratos Aurora e Meridiano", false],
-    ["Pendências abertas", summary.pending_count.toLocaleString("pt-BR"), Object.entries(summary.pending_by_decider).map(([name, count]) => `${name}: ${count}`).join(" · ") || "Nenhuma pendência", false],
+    ["Pendências abertas", (summary.pending_count - summary.alert_count).toLocaleString("pt-BR"), Object.entries(summary.pending_only_by_decider).map(([name, count]) => `${name}: ${count}`).join(" · ") || "Nenhuma pendência", false],
+    ["Alertas", summary.alert_count.toLocaleString("pt-BR"), Object.entries(summary.alert_by_decider).map(([name, count]) => `${name}: ${count}`).join(" · ") || "Nenhum alerta", false],
     ["Conferência do rastro", summary.reconciles ? "Tudo reconcilia" : "Revisar valores", summary.reconciles ? "Valores conciliados com as origens" : "Há valores sem reconciliação", summary.reconciles],
   ];
   target.replaceChildren(...cards.map(([title, value, detail, accent]) => {
@@ -534,11 +535,16 @@ function renderDecisionFields(container, decisionType, scope, item) {
   }
 }
 
+// Pendências que são alertas: pedem atenção de alguém, não mudam nenhum valor (ver config `bloqueantes`).
+const ALERT_TYPES = new Set(["ALERTA_ANTECIPACAO", "REPASSE_ATIPICO"]);
+
 function renderQueue(items) {
   const root = document.querySelector("#queue-items");
   const empty = document.querySelector("#queue-empty");
   const badge = document.querySelector("#queue-count");
-  badge.textContent = `${items.length} ${items.length === 1 ? "pendência" : "pendências"} · ${state.blockingCount} bloqueante(s)`;
+  const alerts = items.filter(item => ALERT_TYPES.has(item.tipo)).length;
+  const pendings = items.length - alerts;
+  badge.textContent = `${pendings} ${pendings === 1 ? "pendência" : "pendências"} · ${alerts} ${alerts === 1 ? "alerta" : "alertas"} · ${state.blockingCount} bloqueante(s)`;
   empty.hidden = items.length !== 0;
   root.hidden = items.length === 0;
   root.replaceChildren(...items.map(item => {
@@ -556,7 +562,17 @@ function renderQueue(items) {
     const status = document.createElement("span");
     status.className = `badge ${item.bloqueante === "S" ? "badge-blocked" : "badge-running"}`;
     status.textContent = item.bloqueante === "S" ? "Bloqueante" : item.estado;
-    header.append(headingBlock, status);
+    const tags = document.createElement("div");
+    tags.className = "queue-tags";
+    if (ALERT_TYPES.has(item.tipo)) {
+      const alertTag = document.createElement("span");
+      alertTag.className = "tag-alert";
+      alertTag.textContent = "Alerta";
+      alertTag.title = "Alerta para o financeiro e o comercial: não altera nenhum valor do fechamento.";
+      tags.append(alertTag);
+    }
+    tags.append(status);
+    header.append(headingBlock, tags);
     const reason = document.createElement("p");
     reason.textContent = item.motivo;
     card.append(header, reason);

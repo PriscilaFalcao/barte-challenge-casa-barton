@@ -26,27 +26,33 @@ class TipoExcecao(str, Enum):
     LINHA_ORBE_SUBSTITUIDA = "LINHA_ORBE_SUBSTITUIDA"
 
 
-HELENA = "Helena"
-COMERCIAL = "Diego"  # ✅ Casa Barton 11h01: "cadastro e contrato quem decide é o comercial"
-HELENA_E_COMERCIAL = "Helena e Diego"
+# Pendências que são alertas: pedem atenção de alguém e não mudam nenhum valor do fechamento. Continuam em
+# pendencias.csv (o formato de saída não tem arquivo de alertas); a interface as destaca e conta à parte.
+# Espelhado em ALERT_TYPES de web/app.js.
+TIPOS_ALERTA = frozenset({TipoExcecao.ALERTA_ANTECIPACAO.value, TipoExcecao.REPASSE_ATIPICO.value})
 
-# Tabela 7.8 do PRD (✅ 17/10: cadastro e contrato com o comercial; a Bia mantém a planilha, mas não decide).
+# Quem decide é uma área, não uma pessoa: a estrutura do time pode mudar (nomes só nos comentários de origem).
+FINANCEIRO = "Financeiro"
+COMERCIAL = "Comercial"  # ✅ Casa Barton 11h01: "cadastro e contrato quem decide é o comercial"
+FINANCEIRO_E_COMERCIAL = "Financeiro e Comercial"
+
+# Tabela 7.8 do PRD (✅ 17/10: cadastro e contrato com o comercial; quem mantém a planilha não decide).
 QUEM_DECIDE_DEFAULT: dict[TipoExcecao, str] = {
-    TipoExcecao.DIVERGENCIA_ORBE: HELENA,
-    TipoExcecao.CONTESTACAO_PONTE: HELENA,
-    TipoExcecao.COMISSAO_NAO_POSITIVA: HELENA,
+    TipoExcecao.DIVERGENCIA_ORBE: FINANCEIRO,
+    TipoExcecao.CONTESTACAO_PONTE: FINANCEIRO,
+    TipoExcecao.COMISSAO_NAO_POSITIVA: FINANCEIRO,
     TipoExcecao.SEM_CONTRATO: COMERCIAL,
-    TipoExcecao.DEVOLUCAO_LOJISTA: HELENA_E_COMERCIAL,  # ✅ "devolução ao lojista, pendência minha com o comercial"
-    TipoExcecao.ALERTA_ANTECIPACAO: HELENA_E_COMERCIAL,  # ✅ "quem precisa saber sou eu e o comercial"
-    TipoExcecao.LANCAMENTO_SEM_ORIGEM: HELENA,
-    TipoExcecao.REPASSE_ATIPICO: HELENA,
-    TipoExcecao.DEVOLUCAO_PIX: HELENA,
+    TipoExcecao.DEVOLUCAO_LOJISTA: FINANCEIRO_E_COMERCIAL,  # ✅ "devolução ao lojista, pendência minha com o comercial"
+    TipoExcecao.ALERTA_ANTECIPACAO: FINANCEIRO_E_COMERCIAL,  # ✅ "quem precisa saber sou eu e o comercial"
+    TipoExcecao.LANCAMENTO_SEM_ORIGEM: FINANCEIRO,
+    TipoExcecao.REPASSE_ATIPICO: FINANCEIRO,
+    TipoExcecao.DEVOLUCAO_PIX: FINANCEIRO,
     TipoExcecao.ENTIDADE_NAO_RESOLVIDA: COMERCIAL,
     TipoExcecao.CONTRATO_AMBIGUO: COMERCIAL,
-    TipoExcecao.CLASSIFICACAO_BAIXA_CONFIANCA: HELENA,
-    TipoExcecao.CONFERIR_MES_SEGUINTE: HELENA,
-    TipoExcecao.STATUS_PONTE_DESCONHECIDO: HELENA,
-    TipoExcecao.LINHA_ORBE_SUBSTITUIDA: HELENA,  # ⚠️ Helena 13h34: correção com o mesmo id, "o critério é de vocês"; mostrar a ela
+    TipoExcecao.CLASSIFICACAO_BAIXA_CONFIANCA: FINANCEIRO,
+    TipoExcecao.CONFERIR_MES_SEGUINTE: FINANCEIRO,
+    TipoExcecao.STATUS_PONTE_DESCONHECIDO: FINANCEIRO,
+    TipoExcecao.LINHA_ORBE_SUBSTITUIDA: FINANCEIRO,  # ⚠️ Helena 13h34: correção com o mesmo id, "o critério é de vocês"; mostrar a ela
 }
 
 

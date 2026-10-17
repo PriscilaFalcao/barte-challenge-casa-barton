@@ -48,7 +48,7 @@ def test_non_positive_checkout_commission_has_no_note_and_a_pending_for_helena(v
     res, r = _rodar([_com(A, valor)])
     assert res.notas == []
     (e,) = res.excecoes
-    assert (e.tipo, e.quem_decide, e.valor_brl) == (TipoExcecao.COMISSAO_NAO_POSITIVA, "Helena", D(valor))
+    assert (e.tipo, e.quem_decide, e.valor_brl) == (TipoExcecao.COMISSAO_NAO_POSITIVA, "Financeiro", D(valor))
     assert e.ref_origem == f"{A}-202609"
     assert r.soma(e.id_saida) == D(valor)
 
@@ -138,5 +138,5 @@ def test_remessa_note_opens_a_pending_to_check_next_month_ted():
     res, r = _rodar([_com(A, "40.00", "REMESSA")])
     (e,) = res.excecoes
     assert (e.tipo, e.ref_origem, e.valor_brl, e.quem_decide) == (
-        TipoExcecao.CONFERIR_MES_SEGUINTE, "REPASSE-PONTE-202609", D("40.00"), "Helena")
+        TipoExcecao.CONFERIR_MES_SEGUINTE, "REPASSE-PONTE-202609", D("40.00"), "Financeiro")
     assert r.soma(e.id_saida) == D("40.00")
