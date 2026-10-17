@@ -74,7 +74,7 @@ Para permitir chamadas novamente:
 Remove-Item Env:TARVO_SEM_IA -ErrorAction SilentlyContinue
 ```
 
-Respostas já existentes no cache ainda podem ser reaproveitadas no modo sem IA. Para uma execução sem respostas anteriores, use uma pasta de cache nova:
+O cache das respostas dos agentes (`cache/agentes/`) não vai para o repositório: é criado na primeira execução com IA, na máquina de quem roda, e reaproveitado nas execuções seguintes, inclusive no modo sem IA. Para uma execução sem respostas anteriores, use uma pasta de cache nova:
 
 ```powershell
 $env:TARVO_CACHE_AGENTES = ".\data\cache-avaliacao"

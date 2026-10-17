@@ -2,7 +2,7 @@
 
 Regras que valem para todo agente:
 - O agente nunca calcula dinheiro (P2). Ele classifica, propõe ou redige; quem aplica é o código.
-- A resposta fica em cache/agentes/<agente>/<hash>.json (versionado no git). Mesma entrada, mesma resposta: a
+- A resposta fica em cache/agentes/<agente>/<hash>.json (local, fora do git). Mesma entrada, mesma resposta: a
   execução é reproduzível sem chave de API, e a banca roda com o mesmo resultado que entregamos.
 - Sem credencial e sem cache, o agente devolve None e a exceção fica na fila humana (modo sem IA, PRD 8.3).
 """
