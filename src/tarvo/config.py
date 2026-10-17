@@ -16,7 +16,7 @@ import yaml
 from .core.excecoes import TipoExcecao
 from .ingest.taxas import PRODUTOS
 
-DEFAULTS_PATH = Path(__file__).resolve().parent.parent.parent / "config" / "defaults.yaml"
+DEFAULTS_PATH = Path(__file__).resolve().parent.parent / "config" / "defaults.yaml"
 
 
 @dataclass(frozen=True)

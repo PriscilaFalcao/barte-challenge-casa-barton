@@ -58,7 +58,7 @@ ANTHROPIC_API_KEY=sua_chave_aqui
 
 O programa lê o arquivo `.env` da raiz; variáveis já definidas no ambiente têm precedência. Nunca publique a chave nem o arquivo `.env`, que está ignorado pelo Git.
 
-Os modelos são definidos em [config/defaults.yaml](config/defaults.yaml): `claude-haiku-4-5` para o Classificador e `claude-sonnet-5-5` para o Intérprete de taxas e o Investigador. A credencial precisa ter acesso aos modelos configurados. As chamadas podem gerar cobrança; o limite padrão é de 60 chamadas novas por execução.
+Os modelos são definidos em [src/config/defaults.yaml](src/config/defaults.yaml): `claude-haiku-4-5` para o Classificador e `claude-sonnet-5-5` para o Intérprete de taxas e o Investigador. A credencial precisa ter acesso aos modelos configurados. As chamadas podem gerar cobrança; o limite padrão é de 60 chamadas novas por execução.
 
 ### Rodar sem chamadas externas
 

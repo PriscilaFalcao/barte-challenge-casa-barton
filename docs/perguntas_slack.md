@@ -643,3 +643,169 @@ Vem quando a Orbe tem ajuste, não todo mês. Se chega antes de eu aprovar o fec
 Correção de uma linha com o mesmo id nunca aconteceu. Se acontecer, o critério é de vocês: deixem claro no HIPOTESES.md e mostrem a pendência para mim.
 — Helena
 
+Turma do Barulho - Marcus Valente  [13h35]
+[financeiro]
+Helena, encontramos sete estornos no 06 com bandeira diferente da venda referenciada (estorno → venda):
+
+TX88447011 → TX88413573: AMEX → VISA
+TX88447030 → TX88438558: ELO → VISA
+TX88447044 → TX88425142: HIPERCARD → ELO
+TX88447057 → TX88430977: AMEX → ELO
+TX88447070 → TX88424537: ELO → VISA
+TX88447093 → TX88416714: VISA → AMEX
+TX88447109 → TX88428997: VISA → ELO
+As bandeiras acima estão na ordem venda → estorno. EC, data original, modalidade, parcelas e taxa aplicada conferem; bruto, taxa e líquido são opostos exatos, sem outra anulação referenciada.
+Propomos manter esses vínculos e incluir os estornos em setembro pela taxa contratada da venda original, preservando os dados e registrando a divergência de bandeira para correção com a Orbe. Como bandeira não determina a taxa nas regras informadas, ela não alteraria o cálculo. Você confirma esse tratamento?1 respostamanuel.freitas  [14h08]
+[Financeiro] Resposta para Turma do Barulho
+Bandeira não muda a taxa para a gente. A Orbe às vezes troca a bandeira no estorno; não precisa contestar nem abrir pendência. Sigam com o vínculo pela referência, como vocês fizeram.
+— Helena
+
+
+Desbravadores - Antonio  [13h36]
+[Desbravadores] [Financeiro] duas dúvidas sobre os arquivos de ajustes que a Orbe manda depois do relatório:
+1. Se uma mesma transação (mesmo id_transacao) aparecer no relatório e no arquivo de ajustes, como devemos tratar? E se ela aparecer com valores diferentes em cada arquivo?
+2. Se o arquivo de ajustes trouxer o estorno, ou a reversão de antecipação, de uma transação deste mesmo mês que não está em nenhum arquivo da Orbe que recebemos, como devemos tratar?1 respostamanuel.freitas  [14h10]
+[Financeiro] Resposta para Desbravadores
+
+Já está no canal, na resposta ao Lucca.
+Em setembro isso não acontece: todas as referências do arquivo de ajustes estão no relatório. Se um dia acontecer, o ajuste entra pelo valor que veio e vira pendência para eu pedir a original à Orbe.
+— Helena
+
+
+Turma do Barulho - Carlos Vaz  [13h48]
+Qual a estrutura de rastro desejada e existe algum padrão nice-to-have para ser adotado para ser auditavel para a equipe tanto da Tarvo quanto da Barte?
+1 respostamanuel.freitas  [14h11]
+[Logística] Resposta para Turma do Barulho
+O mínimo é o rastro.csv no formato das instruções (id_saida; arquivo_origem; ref_origem; valor): toda comissão e toda nota com um id_saida, e a soma de valor por id_saida batendo com o número reportado.
+Para ficar auditável de verdade, ajuda ter:
+
+rastro também das divergências e da nota da Ponte;
+um registro de cada execução: quais arquivos entraram, quantas linhas de cada, data e hora;
+em cada linha, a regra aplicada (taxa contratada usada, isenção, estorno pela venda original).
+Quem abrir tem que conseguir refazer qualquer número sem perguntar para vocês.
+— Organização
+
+T-800 - Pedro Matos  [15h43]
+[financeiro] T-800: rodada única de perguntas sobre caixa, nota, taxas, contestação e classificação, com exemplo em cada uma. Quando não houver resposta, seguimos com a premissa indicada.
+
+1. Juros da conta garantida. O Aurora ficou negativo em 16 dos 22 dias com lançamento, chegando a −R$ 2.289.532,94 em 24/09, e o extrato de setembro não mostra juros nem IOF dessa conta (só R$ 576,50 de tarifas). Os juros são cobrados no mês seguinte? Entram em 4.3.02 (juros e multas)? Sem resposta, deixamos pendência para a senhora e não lançamos nada.
+
+2. IOF de R$ 48,21. Em 26/09 entrou no Meridiano "IOF S/ OPERACAO CREDITO" de R$ 48,21 (FITID MRD2026090586). É da conta garantida do Aurora ou de outra operação de crédito? Hoje lançamos em 4.3.01. Sem resposta, mantemos 4.3.01 como premissa.
+
+3. IOF das remessas. Cada TED à Ponte é a soma de Valor R$ + IOF das operações do dia. Ex.: em 01/09, R$ 240.619,49 para 11 operações (MRD2026090094). O IOF das 232 operações do mês soma R$ 21.242,79. Lançamos o TED inteiro como baixa de "recursos de lojistas para remessas a liquidar" (2.1.02.001), tratando o IOF como repasse e não como despesa da Tarvo. Está certo, ou a Tarvo arca com parte desse IOF? Sem resposta, mantemos assim como premissa.
+
+4. Razão social na nota. A planilha tem nomes curtos (ex.: "Vela", "Canguru", "Mundo Aberto", "EduAbroad"), e a Orbe e o banco escrevem outros ("VELA TURISMO EDUCACIONAL", "MUNDO ABERTO INTERCAMBIO"). De onde tiramos a razão social do tomador: do ERP ou do contrato de adesão? Enquanto isso, usamos o nome da planilha com o CNPJ e marcamos "RAZÃO SOCIAL A CONFERIR".
+
+5. CNPJ com 13 dígitos. A planilha perdeu o zero à esquerda de Fluente (3229837000103) e Campus Global (8780784000120). Completamos para 03229837000103 e 08780784000120. Confere?
+
+6. Retenção na nota da Ponte. A nota de intermediação de setembro é de R$ 39.543,45. A Ponte retém ISS ou IRRF no pagamento, de modo que o repasse de 06/10 chegue menor que a nota? Hoje a Tarvo recolhe o ISS pelo DAMSP no mês seguinte (R$ 21.877,40 em 10/09, de agosto). O ISS dessa nota entra no DAMSP de outubro? Hoje o fechamento não considera nenhuma retenção.
+
+7. Fluente, Pix a 0,79%. A planilha traz 0,79% para o Pix da Fluente e 0,89% para os demais lojistas. A Orbe cobrou 0,79% nas 8 vendas de Pix dela (ex.: TX88413169). Fechamos pela planilha e abrimos pendência de R$ 9,16 (a diferença entre 0,89% e 0,79%) para o comercial. O 0,79% é condição negociada ou erro de digitação da planilha? Sem resposta, a nota sai pela planilha, sinalizada.
+
+8. Período da isenção da Casa. A senhora disse "setembro a dezembro". Entendemos de 01/09/2026 a 31/12/2026, e a partir de 01/01/2027 a Casa volta à planilha. Ex.: TX88410932, de 01/09, R$ 608,88 a 2,69%, está dentro da isenção. Confere o início e o fim? Sem resposta, seguimos com essas datas.
+
+9. Taxa pela data da venda. O aditivo da Bridge vale "a partir de 15/09" (2,19%). A Orbe cobrou 2,59% em 5 vendas de 15 a 18/09 (R$ 29,95 de diferença; ex.: TX88428053, venda de 15/09). Para a taxa de uma venda, usamos a data da venda, e não a de liquidação. Confere? Sem resposta, seguimos assim.
+
+10. Prazo da contestação à Ponte. O e-mail de 02/10 pede resposta a divergências "em até 5 dias úteis". Contando do envio, sem feriados, o prazo venceu em 09/10. A contestação ainda é aceita, e o prazo conta do e-mail ou do recebimento do relatório? Está em jogo a Mundo Aberto (R$ 1.418,88, 23 operações), os 4 spreads negativos (R$ 3.565,98 de diferença até o contrato) e a duplicata PC-0926-0162 (R$ 410,94). Hoje as pendências dizem "prazo a confirmar".
+
+11. PIX enviado que não seja repasse. No Aurora, os 44 PIX enviados a lojistas somam R$ 4.230.267,61, e há um PIX de R$ 6.800,00 para a contabilidade (18/09, linha L53). Classificamos todo PIX enviado como repasse (2.1.01.001), exceto o da contabilidade. Existem outras saídas por PIX (fornecedor, sócio, imposto) que não são repasse? Como reconhecê-las no extrato? Sem resposta, um PIX para quem não é lojista cadastrado vira pendência.
+
+12. Natureza de três lançamentos do Meridiano. (a) CDB: 6 movimentos de aplicação e resgate automático, com saldo líquido de −R$ 115.243,00, classificados como "Aplicação automática" (1.1.02.001), sem efeito no resultado. (b) Rendimento de R$ 3.912,66 em 30/09 (MRD2026090680): é receita financeira do mês (3.2.01), ou já vinha apropriado? (c) Seguro empresarial, parcela 09/12 de R$ 1.830,44 em 12/09 (MRD2026090292): é despesa do mês (4.2.05), ou o seguro anual já estava registrado como despesa antecipada?
+1 respostamanuel.freitas  [15h47]
+[Financeiro] Resposta para T-800
+Obrigada por já mandarem com a premissa, ajuda muito.
+1. Juros da conta garantida: vêm no extrato do mês seguinte. Em setembro não tem nada a lançar.
+2. IOF de R$ 48,21: é de uma operação de crédito do Meridiano, não da conta garantida do Aurora. A conta é com vocês, pelo plano de contas.
+3. IOF das remessas: é do cliente. A Tarvo só repassa à Ponte.
+4. Razão social: vale a do contrato de adesão, que não está no pacote. Nome da planilha com CNPJ serve. A Bia confere na hora de emitir.
+5. CNPJ: tem sempre 14 dígitos. O zero se perde quando a planilha transforma o CNPJ em número.
+6. Retenção: a Ponte não retém nada. O ISS da nota vai no DAMSP do mês seguinte, fora deste fechamento.
+7. Fluente: o 0,79% é condição negociada com ela. Não precisa de pendência.
+8. Isenção da Casa: isso, de 01/09 a 31/12/2026.
+ 9 e 10. Já estão no canal: vale a data da venda, e ainda estamos dentro do prazo de contestação, porque o fechamento é esta semana.
+9. Pix enviado: em setembro, o único Pix enviado que não é repasse é o da contabilidade. Para quem não é lojista, a premissa de vocês serve.
+10. Rendimento e seguro: rendimento é receita do mês. Seguro vai direto na despesa, como as assinaturas.
+— Helena
+
+
+Helio Henrique  [15h45]
+[financeiro] Fox AI:
+
+1. Casa do Estudante — devolução ao lojista
+A Orbe cobrou R$ 15.396,77 (truncando centavos por linha). A fórmula limpa dá R$ 15.397,42. Diferença: R$ 0,65.
+- (a) R$ 15.396,77 (o que a Orbe tirou)
+- (b) R$ 15.397,42 (fórmula)
+
+2. Estorno de venda que tinha divergência
+5 casos em set/2026. O motor hoje anula a divergência da venda com a do estorno na contestação com a Orbe.
+- (a) Anular (atual)
+- (b) Manter as duas separadas
+
+3. Orbe cobrou menos que o contrato
+Nenhum caso em setembro, mas precisa de regra.
+- (a) Divergência negativa em CK-DIV (atual)
+- (b) Pendência de tipo próprio
+- (c) Ignora
+
+4. Folha de agosto baixada em setembro — valor da provisão
+Qual o valor exato? (ou "usa o valor cheio do lançamento")
+
+5. Colunas extras nos CSVs
+Hoje saem causa_divergencia (em divergencias_taxa.csv) e metadata (em rastro.csv).
+- (a) Mantém as duas
+- (b) Tira as duas
+- (c) Só causa_divergencia
+- (d) Só metadata1 respostamanuel.freitas  [15h55]
+[Financeiro] Resposta para Fox AI
+
+Já está no canal, na resposta ao Lucca: é a (a), o que a Orbe tirou.
+Também já está no canal. Na lista de divergências ficam as duas linhas, com o estorno em valor negativo. Na cobrança da Orbe, elas se anulam.
+Também já está no canal: é divergência e eu decido caso a caso. Não aconteceu em setembro.
+A provisão foi feita pelo valor que foi pago, então a baixa é pelo valor cheio do lançamento.
+Podem manter as duas colunas. Coluna extra não atrapalha, desde que as colunas pedidas estejam lá com os nomes certos.
+— Helena
+
+
+Turma do Barulho - Raphael Schiavon  [15h51]
+[Turma do Barulho] – Dúvida de formato do repositório: além da estrutura obrigatória na raiz (README.md, HIPOTESES.md, PROMPTS/, saida/, src/), podemos ter pastas adicionais para organização ? A ideia é manter tudo que é obrigatório exatamente onde foi pedido e só acrescentar pastas.
+1 respostamanuel.freitas  [15h54]
+[Logística] Resposta para Turma do Barulho
+Podem, sim. Com o obrigatório exatamente onde foi pedido, o resto da organização é com vocês. Só confiram se o README explica como rodar a partir da raiz.
+— Organização
+
+
+T-800 - Pedro Matos  [16h]
+[financeiro] T-800: rodada de confirmação, com o que lançamos hoje em cada caso. Pedimos resposta objetiva, com a conta ou o prazo.
+
+1. Prazo para contestar a Ponte. O e-mail de 02/10 pede resposta a divergências em até 5 dias úteis, o que dá 09/10 sem contar feriados. Qual é o prazo final para contestar o relatório de setembro, e a partir de qual data ele conta: do envio do e-mail ou do recebimento? Está em jogo a Mundo Aberto, os 4 spreads negativos e a duplicata PC-0926-0162. Sem resposta, mantemos a contestação como "prazo a confirmar" e não a enviamos.
+
+2. Valor que pedimos à Ponte na Mundo Aberto. São 23 operações com excesso sobre o 1,20% contratado. Calculamos R$ 1.418,88 pelo Spread R$ realizado; pelo spread % informado dá R$ 1.418,85. Qual valor devemos pedir na contestação? Sem resposta, pedimos R$ 1.418,88.
+
+3. Casa do Estudante a partir de 2027. A isenção vai até 31/12/2026. Em 01/01/2027, a Casa volta à taxa da planilha, sem condição especial? Ou o comercial renova o acordo? Sem resposta, deixamos a planilha como está a partir de 2027 e abrimos pendência para o comercial.
+
+4. PIX de R$ 7.350,00 sem identificação (16/09, CNPJ 38.686.002/0001-80, linha L50). Lançamos em 1.1.09.002 (créditos não identificados), e não como receita. Essa conta está certa enquanto não houver identificação? Quem identifica o pagador, e em qual prazo? Sem resposta, mantemos 1.1.09.002 e a pendência para a senhora.
+
+5. Devolução de PIX de R$ 12.400,00 do Mundo Aberto (23/09, linha L65). Lançamos em 2.1.01.001 (repasses a lojistas a pagar). A senhora disse que as duas contas servem (2.1.01.001 ou 2.1.01.002). Qual escolhemos para esta devolução e para as próximas? Sem resposta, mantemos 2.1.01.001.
+
+6. Transferência de R$ 300.000,00 do Aurora para o Meridiano (30/09, linha L92). Lançamos em 1.1.09.001 (transferências entre contas próprias) e entrada só em 01/10. Confirma essa conta? E, se a entrada em outubro não aparecer, qual o tratamento? Sem resposta, mantemos 1.1.09.001 e a pendência.
+
+7. PIX de R$ 18.240,00 da Ponte Aérea Estudantil (17/09, FITID MRD2026090425). Lançamos em 2.1.02.001 (recursos de lojistas para remessas a liquidar) e como pendência, porque a senhora disse que é remessa de outubro. Está certo? E quando a remessa sair, a baixa é feita pelo relatório de outubro da Ponte? Sem resposta, mantemos como está.
+
+8. Despesas que lançamos direto no mês. A senhora disse que tarifas, aluguel, cloud, assinaturas e serviços entram na despesa do mês. Lançamos assim: PIX à Contabilidade Exata R$ 6.800,00 em 4.2.06 (serviços contábeis e jurídicos); boleto de condomínio R$ 28.450,00 em 4.2.02; AWS R$ 41.208,77 em 4.2.03; Google Workspace R$ 2.210,00 em 4.2.04 (premissa); tarifas bancárias em 4.2.01; seguro empresarial R$ 1.830,44 em 4.2.05. Confirma cada conta, ou indica a correta? Sem resposta, mantemos as contas acima.
+
+9. Duas contas do Meridiano. (a) TED de liquidação para a Ponte (21 TEDs, R$ 5.611.447,12 no total), lançada em 2.1.02.001 como baixa de recursos de lojistas. (b) Aplicação e resgate automático de CDB (6 movimentos, saldo líquido de −R$ 115.243,00), lançada em 1.1.02.001 sem efeito no resultado. Essas contas estão certas? Sem resposta, mantemos as contas acima.
+
+10. Atlas (EC 1076801732). A taxa ainda não foi confirmada, e a Atlas está retida. Quem no comercial decide a taxa, e há previsão de confirmação antes do fechamento de outubro? Sem resposta, a Atlas fica retida e a pendência segue para o comercial, sem nome definido.
+1 respostamanuel.freitas  [16h08]
+[Financeiro] Resposta para T-800
+Conta por conta e número por número eu não confiro: o que vale na entrega é o critério de vocês, registrado no HIPOTESES.md. O que é fato:
+1. Já está no canal duas vezes: ainda estamos no prazo, porque o fechamento é esta semana.
+2. A diferença é de centavos: escolham um dos dois valores e registrem.
+3. Renovar ou não é decisão do comercial, e ainda não tem previsão. A pendência para eles está certa.
+4. Quem vai atrás do pagador é o Caio, com o banco, até o fechamento de outubro.
+5. Já está no canal: as duas contas servem, o critério é de vocês.
+6. Se a entrada não aparecer em outubro, vira pendência para a tesouraria, que sou eu.
+7. Já está no canal. A baixa sai quando a remessa liquidar, pelo relatório de outubro da Ponte.
+ 8 e 9. A regra já está no canal: despesa do mês vai direto na despesa, recurso de lojista fica no passivo e aplicação não tem efeito no resultado.
+8. Quem decide é o Diego, do comercial. Ainda sem previsão.
+— Helena
