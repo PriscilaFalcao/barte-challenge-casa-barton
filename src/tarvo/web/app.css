@@ -169,6 +169,8 @@ h1 { margin-bottom: 7px; font-size: clamp(26px, 3vw, 32px); letter-spacing: -1.1
 table { width: 100%; border-collapse: collapse; text-align: left; }
 th { position: sticky; top: 0; z-index: 1; padding: 10px 15px; background: #faf9fa; color: #817c82; font-size: 9px; font-weight: 650; white-space: nowrap; }
 td { max-width: 280px; padding: 11px 15px; border-top: 1px solid #f1eff1; color: #504c51; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trace-hint { display: flex; align-items: center; gap: 10px; margin: 0 21px 14px; padding: 10px 12px; border-radius: 8px; background: var(--accent-soft); color: var(--accent-dark); font-size: 11px; line-height: 1.4; }
+.trace-hint-icon { display: grid; flex: none; width: 18px; height: 18px; place-items: center; border-radius: 50%; background: var(--accent); color: white; font-size: 11px; font-weight: 700; font-style: italic; }
 tbody tr { cursor: pointer; }
 tbody tr:hover { background: #fff8fa; }
 td.amount { text-align: right; font-variant-numeric: tabular-nums; }

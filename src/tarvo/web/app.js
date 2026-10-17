@@ -960,25 +960,52 @@ document.querySelectorAll(".tab").forEach(tab => tab.addEventListener("click", (
 document.querySelector("#table-search").addEventListener("input", renderTable);
 document.querySelector("#close-drawer").addEventListener("click", closeDrawer);
 document.querySelector("#drawer-backdrop").addEventListener("click", closeDrawer);
-document.querySelectorAll(".main-nav .nav-link").forEach(link => link.addEventListener("click", event => {
-  event.preventDefault();
-  document.querySelectorAll(".main-nav .nav-link").forEach(item => {
+const navLinks = [...document.querySelectorAll(".main-nav .nav-link")];
+function setActiveNav(link) {
+  navLinks.forEach(item => {
     const active = item === link;
     item.classList.toggle("active", active);
     if (active) item.setAttribute("aria-current", "page");
     else item.removeAttribute("aria-current");
   });
-  if (link.dataset.notice) showNotice(link.dataset.notice, false);
-  else notice.hidden = true;
-}));
-document.querySelectorAll("[data-section]").forEach(link => link.addEventListener("click", event => {
+}
+const navLinkFor = id => navLinks.find(item => item.dataset.section === id);
+let navLockUntil = 0;
+function syncNavWithScroll() {
+  if (Date.now() < navLockUntil) return;
+  const line = window.innerHeight * 0.4;
+  const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
+  let current = "fechamentos";
+  for (const id of ["validation-queue", "downloads"]) {
+    const section = document.querySelector(`#${id}`);
+    if (!section || !section.offsetParent) continue;
+    if (section.getBoundingClientRect().top <= line) current = id;
+  }
+  if (atBottom && document.querySelector("#downloads").offsetParent && window.scrollY > 0) current = "downloads";
+  setActiveNav(navLinkFor(current));
+}
+window.addEventListener("scroll", syncNavWithScroll, { passive: true });
+window.addEventListener("resize", syncNavWithScroll);
+navLinks.forEach(link => link.addEventListener("click", event => {
   event.preventDefault();
-  const section = document.querySelector(`#${link.dataset.section}`);
-  if (closureView.hidden || !section || section.hidden) {
+  const id = link.dataset.section;
+  if (id === "fechamentos") {
+    notice.hidden = true;
+    setActiveNav(link);
+    navLockUntil = Date.now() + 800;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return;
+  }
+  const section = document.querySelector(`#${id}`);
+  if (closureView.hidden || !section || !section.offsetParent) {
     showNotice("Abra ou conclua um fechamento para acessar esta seção.", false);
     return;
   }
-  section.scrollIntoView({ behavior: "smooth", block: "start" });
+  notice.hidden = true;
+  setActiveNav(link);
+  navLockUntil = Date.now() + 800;
+  if (id === "downloads") window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" });
+  else section.scrollIntoView({ behavior: "smooth", block: "start" });
 }));
 document.addEventListener("keydown", event => {
   if (event.key === "Escape" && drawer.classList.contains("open")) closeDrawer();
