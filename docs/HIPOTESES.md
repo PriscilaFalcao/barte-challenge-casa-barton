@@ -107,6 +107,7 @@ Cada hipótese foi verificada duas vezes contra os dados. A coluna "veredito" di
 | D4 | Estornos entram como divergência quando foram feitos a uma taxa diferente da contratada na data da venda original (por exemplo, estornos da Rota de vendas após 12/09). O sinal é negativo: a Orbe já devolveu parte do excesso. | ⚠️ | Consequência de C3 + D1 |
 | D5 | **Atlas:** não geramos divergência. Sem taxa contratada, qualquer número seria alarme falso. Fica só como pendência. | ⚠️ | C9 |
 | D6 | **Atlas, valor da pendência `SEM_CONTRATO`:** `valor_brl` = soma da taxa cobrada pela Orbe nas 57 linhas do mês (R$ 7.876,05), com rastro linha a linha. É só para dimensionar o que está parado, não é valor a faturar nem comissão. A comissão não é calculada. Convenção nossa, não regra do financeiro. Vai junto com a V5 (PRD seção 12). Outros critérios possíveis: volume bruto, ou zero. Nenhum deles muda comissão, nota ou divergência. | ⚠️ | C9, D5 |
+| D7 | **Granularidade da pendência de divergência de checkout:** 1 pendência `DIVERGENCIA_ORBE` por divergência (210 em setembro), cada uma com 1 linha de rastro. Coerente com D3 ("cada divergência vira pendência dela") e com a rastreabilidade linha a linha, mas a escolha do nível de detalhe é nossa. Vai como sub-ponto da V6 (PRD seção 12). Alternativa: 1 por lojista, com as operações no motivo. Não muda comissão, nota nem divergência. | ⚠️ | D3 |
 
 ### 2.3 Remessa
 

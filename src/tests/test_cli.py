@@ -29,8 +29,18 @@ def test_fechar_writes_the_checkout_outputs_and_they_reconcile(dados, tmp_path):
     assert len(comissoes) == 21
     for c in comissoes:
         assert soma[c["id_saida"]] == D(c["comissao_brl"])
-    assert [(p["tipo"], p["quem_decide"]) for p in pendencias] == [("SEM_CONTRATO", "Diego")]
-    assert soma[pendencias[0]["id_saida"]] == D(pendencias[0]["valor_brl"])
+    por_tipo = defaultdict(list)
+    for p in pendencias:
+        por_tipo[p["tipo"]].append(p)
+        assert soma[p["id_saida"]] == D(p["valor_brl"])
+    assert {t: len(v) for t, v in por_tipo.items()} == {"SEM_CONTRATO": 1, "DIVERGENCIA_ORBE": 210}
+    assert por_tipo["SEM_CONTRATO"][0]["quem_decide"] == "Diego"
+    divergencias = _ler(tmp_path / "divergencias_taxa.csv")
+    assert len(divergencias) == 210
+    for d in divergencias:
+        assert soma[d["id_saida"]] == D(d["diferenca_brl"])
+        assert d["taxa_aplicada_pct"] != d["taxa_contratada_pct"]
+    assert sum(D(d["diferenca_brl"]) for d in divergencias) == D("16973.65")
     assert sum(D(c["comissao_brl"]) for c in comissoes) == D("207039.73")
 
 
@@ -38,7 +48,7 @@ def test_two_runs_produce_identical_files(dados, tmp_path):
     a, b = tmp_path / "a", tmp_path / "b"
     for d in (a, b):
         main(["fechar", "--mes", "2026-09", "--dados", str(dados), "--saida", str(d)])
-    for nome in ("comissoes_por_lojista.csv", "rastro.csv", "pendencias.csv"):
+    for nome in ("comissoes_por_lojista.csv", "divergencias_taxa.csv", "rastro.csv", "pendencias.csv"):
         assert (a / nome).read_bytes() == (b / nome).read_bytes()
 
 

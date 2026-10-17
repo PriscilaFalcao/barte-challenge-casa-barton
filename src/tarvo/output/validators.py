@@ -42,3 +42,14 @@ def validar_i_r1(saidas: dict[str, list[dict]], rastro: Rastro) -> None:
                 )
     if falhas:
         raise ValidationError(falhas)
+
+
+def validar_i_d1(divergencias: list[dict]) -> None:
+    """I-D1: nenhuma divergência de checkout com taxa aplicada igual à contratada."""
+    falhas = [
+        f"I-D1 {d['id_saida']}: ref {d['ref_origem']} com taxa aplicada == contratada ({d['taxa_aplicada_pct']})"
+        for d in divergencias
+        if Decimal(d["taxa_aplicada_pct"]) == Decimal(d["taxa_contratada_pct"])
+    ]
+    if falhas:
+        raise ValidationError(falhas)

@@ -21,4 +21,4 @@ def main(argv: list[str] | None = None) -> None:
     res = fechar(a.mes, a.dados, a.saida)
     total = sum((c["comissao_brl"] for c in res.comissoes), Decimal("0"))
     print(f"{a.mes}: {len(res.comissoes)} lojistas, comissão de checkout R$ {fmt(total)}, "
-          f"{len(res.excecoes)} pendência(s). Saídas em {a.saida}/")
+          f"{len(res.divergencias)} divergência(s), {len(res.excecoes)} pendência(s). Saídas em {a.saida}/")
