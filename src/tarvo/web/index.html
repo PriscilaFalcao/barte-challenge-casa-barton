@@ -17,14 +17,14 @@
         </a>
         <div class="workspace-label">FINANCEIRO</div>
         <nav class="main-nav">
-          <a class="nav-link active" href="#fechamentos" aria-current="page">
+          <a class="nav-link active" href="#fechamentos" data-section="fechamentos" aria-current="page">
             <span class="nav-icon" aria-hidden="true">▦</span> Fechamentos
           </a>
           <a class="nav-link" href="#validation-queue" data-section="validation-queue">
             <span class="nav-icon" aria-hidden="true">✓</span> Validações
           </a>
-          <a class="nav-link" href="#configuracoes" data-notice="As configurações versionadas ainda não estão integradas.">
-            <span class="nav-icon" aria-hidden="true">⚙</span> Configurações
+          <a class="nav-link" href="#downloads" data-section="downloads">
+            <span class="nav-icon" aria-hidden="true">⇩</span> Downloads
           </a>
         </nav>
         <div class="sidebar-foot">
@@ -239,7 +239,7 @@
                 <button class="button button-primary" id="close-confirm" type="submit">Fechar competência</button>
               </form>
             </section>
-            <section class="card outputs-card">
+            <section id="downloads" class="card outputs-card">
               <div class="outputs-header">
                 <div>
                   <h3>Saídas do fechamento</h3>
@@ -251,6 +251,10 @@
                   <input id="table-search" type="search" placeholder="Buscar">
                 </label>
               </div>
+              <p class="trace-hint" role="note">
+                <span class="trace-hint-icon" aria-hidden="true">i</span>
+                <span>Clique em qualquer registro da tabela para ver o rastreio completo: arquivo de origem, regra aplicada e os itens que formam o valor.</span>
+              </p>
               <div class="tabs" role="tablist" aria-label="Tabelas de saída">
                 <button class="tab active" type="button" role="tab" aria-selected="true" data-table="comissoes">Comissões</button>
                 <button class="tab" type="button" role="tab" aria-selected="false" data-table="divergencias">Divergências</button>
