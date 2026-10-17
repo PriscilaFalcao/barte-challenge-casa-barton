@@ -1,6 +1,7 @@
 """Fechamento do mês: checkout, remessa, divergências, notas e classificação dos extratos."""
 from __future__ import annotations
 
+import collections
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -26,7 +27,8 @@ from .ingest.ponte import ARQUIVO as ARQUIVO_PONTE
 from .ingest.ponte import ler_ponte
 from .ingest.taxas import ARQUIVO as ARQUIVO_TAXAS
 from .ingest.taxas import ler_taxas
-from .output.validators import validar_i_c1, validar_i_d1, validar_i_n1, validar_i_r1, validar_i_r3
+from .output.resumo import gerar_resumo
+from .output.validators import validar_i_c1, validar_i_d1, validar_i_n1, validar_i_r1, validar_i_r2, validar_i_r3
 from .output.writers import escrever_csv, escrever_rastro
 
 
@@ -87,9 +89,11 @@ def fechar(mes: str, dados: Path, saida: Path) -> ResultadoFechamento:
     ban = classificar_lancamentos(aurora.lancamentos + meridiano.lancamentos, plano, cfg.regras_lancamento,
                                   cfg.conta_provisoria, cfg.alertas_lancamento, ops, mes, rastro, ledger)
     excecoes = excecoes_taxas + res.excecoes + div.excecoes + rem.excecoes + notas.excecoes + ban.excecoes
+    # quem_decide e bloqueante vêm da configuração (P7); o default do código só vale para tipo não configurado.
     pendencias = [
         {"id_saida": e.id_saida, "tipo": e.tipo.value, "ref_origem": e.ref_origem,
-         "valor_brl": e.valor_brl, "motivo": e.motivo, "quem_decide": e.quem_decide}
+         "valor_brl": e.valor_brl, "motivo": e.motivo, "quem_decide": cfg.quem_decide.get(e.tipo, e.quem_decide),
+         "bloqueante": "S" if e.tipo in cfg.bloqueantes else "N"}
         for e in excecoes
     ]
     divergencias = div.divergencias + rem.divergencias
@@ -107,6 +111,11 @@ def fechar(mes: str, dados: Path, saida: Path) -> ResultadoFechamento:
     validar_i_d1(divergencias)
     validar_i_n1(notas.notas)
     validar_i_c1(ban.lancamentos, plano)
+    validar_i_r2({ARQUIVO_ORBE: {t.id_transacao for t in txs}, ARQUIVO_PONTE: {o.n_operacao for o in ops},
+                  ARQUIVO_TAXAS: {c.ref_origem for c in contratos},
+                  **{arq: {l.ref_origem for l in ext.lancamentos}
+                     for ext in (aurora, meridiano) for arq in {l.arquivo for l in ext.lancamentos}}}, rastro)
+    validacoes = "I-R1, I-R2, I-R3, I-D1, I-N1, I-C1 ok"
 
     saida.mkdir(parents=True, exist_ok=True)
     escrever_csv(saida / "comissoes_por_lojista.csv", "comissoes_por_lojista", comissoes)
@@ -115,6 +124,9 @@ def fechar(mes: str, dados: Path, saida: Path) -> ResultadoFechamento:
     escrever_csv(saida / "lancamentos_classificados.csv", "lancamentos_classificados", ban.lancamentos)
     escrever_csv(saida / "pendencias.csv", "pendencias", pendencias)
     escrever_rastro(saida / "rastro.csv", rastro)
+    (saida / "resumo.md").write_text(
+        gerar_resumo(mes, comissoes, divergencias, notas.notas, ban.lancamentos, pendencias, plano, validacoes),
+        encoding="utf-8")
 
     # Sem carimbo de data: o log também é idêntico entre duas execuções com as mesmas entradas.
     linhas_log = [
@@ -130,15 +142,18 @@ def fechar(mes: str, dados: Path, saida: Path) -> ResultadoFechamento:
         else f"Aurora: {len(aurora.lancamentos)} lançamento(s); sem SALDO ANTERIOR, cadeia conferida a partir da 1ª linha",
         f"Meridiano: {len(meridiano.lancamentos)} lançamento(s); OFX sem saldo inicial, cadeia não verificável",
         f"Meridiano: {ban.conciliadas} TED(s) à Ponte conciliada(s) com Σ(Valor R$ + IOF) das operações do dia",
+        f"Meridiano: PIX recebidos de lojistas − TEDs à Ponte no mês = R$ {fmt(ban.saldo_recursos_remessa)} "
+        f"(recursos para remessas ainda não liquidados)",
         *ledger.linhas_log(),
         *[f"AVISO: {a}" for a in avisos],
-        "validação: I-R1, I-R3, I-D1, I-N1, I-C1 ok",
+        f"validação: {validacoes}",
         f"comissoes_por_lojista: {len(comissoes)} linha(s)",
         f"divergencias_taxa: {len(divergencias)} linha(s)",
         f"notas_a_emitir: {len(notas.notas)} linha(s)",
         f"lancamentos_classificados: {len(ban.lancamentos)} linha(s), "
         f"{sum(1 for l in ban.lancamentos if l['metodo'] == 'REGRA')} por REGRA",
-        f"pendencias: {len(pendencias)} linha(s)",
+        f"pendencias: {len(pendencias)} linha(s), {sum(p['bloqueante'] == 'S' for p in pendencias)} bloqueante(s)",
+        *[f"  {t}: {n}" for t, n in sorted(collections.Counter(p["tipo"] for p in pendencias).items())],
         f"rastro: {len(rastro.linhas())} linha(s)",
     ]
     (saida / "execucao.log").write_text("\n".join(linhas_log) + "\n", encoding="utf-8")

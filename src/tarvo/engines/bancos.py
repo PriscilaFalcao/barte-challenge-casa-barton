@@ -29,6 +29,7 @@ from ..ingest.ponte import OpPonte
 from ..ingest.texto import norm_texto
 
 REGRA_TED_PONTE = "MER-TED-PONTE"
+REGRA_PIX_LOJISTA = "MER-PIX-LOJISTA"
 REGRA_TRANSF_SAIDA = "AUR-TRANSF-MER"
 REGRA_TRANSF_ENTRADA = "MER-TED-TARVO"
 SEM_REGRA = "SEM-REGRA"
@@ -40,6 +41,9 @@ class ResultadoBancos:
     lancamentos: list[dict] = field(default_factory=list)
     excecoes: list[Excecao] = field(default_factory=list)
     conciliadas: int = 0  # TEDs à Ponte que bateram com as operações do dia
+    # Σ PIX recebidos de lojistas + Σ TEDs à Ponte no mês: o que ficou de recursos para remessas sem liquidar.
+    # 📄 Setembro: exatamente R$ 18.240,00, o adiantamento da Ponte Aérea. Por lojista os PIX não batem.
+    saldo_recursos_remessa: Decimal = Decimal("0")
 
 
 def _validar_contas(plano: dict[str, Conta], regras: tuple[RegraLancamento, ...],
@@ -124,6 +128,8 @@ def classificar_lancamentos(
             "confianca": confianca, "regra_id": regra_id,
         })
         rastro.add(id_saida, l.arquivo, l.ref_origem, l.valor, "", "", regra_id)
+        if regra_id in (REGRA_PIX_LOJISTA, REGRA_TED_PONTE):
+            res.saldo_recursos_remessa += l.valor
 
     _parear_transferencias(classificados, pendencia)
     _aplicar_alertas(do_mes, alertas, mes, pendencia)

@@ -11,7 +11,7 @@ A one-day hackathon submission (Barte AI Services, "Case Tarvo", 16–17 Oct 202
 
 Full brief: `01_instrucoes_participantes.docx` (Portuguese). Data pack description: `dados/00_LEIA-ME.md`. All data is synthetic.
 
-Implementation status (blocks per `docs/PRD.md` section 11): B0 to B6 are done (core, ingestion of all 6 files, merchant registry, rate resolver, checkout, remessa, divergences, notes, bank classification by rule). Consolidated pendências/resumo.md (B7), agents/state (B8, B11) and the web UI (B9, B10) are not built yet. Finance answers up to 17/10 11h03 are reflected in `docs/PRD.md` 12.1.
+Implementation status (blocks per `docs/PRD.md` section 11): B0 to B7 are done (core, ingestion of all 6 files, merchant registry, rate resolver, checkout, remessa, divergences, notes, bank classification by rule, pendências with owner/blocking from config, I-R2, `saida/resumo.md`). Agents/state (B8, B11) and the web UI (B9, B10) are not built yet. Finance answers up to 17/10 11h03 are reflected in `docs/PRD.md` 12.1.
 
 **All code lives under `src/`**, tests (`src/tests/`) and helper scripts (`src/scripts/`) included. Python 3.11+ (a `.venv` with 3.13 is used locally).
 

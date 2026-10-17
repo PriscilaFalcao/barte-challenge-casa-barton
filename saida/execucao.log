@@ -7,14 +7,25 @@ Plano de contas: 52 conta(s), 32 analítica(s)
 Aurora: 84 lançamento(s); cadeia de saldos fecha (R$ 612334.81 -> R$ -1920088.60)
 Meridiano: 100 lançamento(s); OFX sem saldo inicial, cadeia não verificável
 Meridiano: 21 TED(s) à Ponte conciliada(s) com Σ(Valor R$ + IOF) das operações do dia
+Meridiano: PIX recebidos de lojistas − TEDs à Ponte no mês = R$ 18240.00 (recursos para remessas ainda não liquidados)
 Aurora: 1 linha(s) ignorada(s) (rodapé ou linha sem dado); ex.: L95
 Aurora: 2 linha(s) ignorada(s) (saldo anterior ou final); ex.: L8, L94
 Ponte: 2 linha(s) ignorada(s) (rodapé ou linha sem dado); ex.: L240, L241
 Taxas: 1 linha(s) ignorada(s) (rodapé ou linha sem dado); ex.: Taxas!L32
-validação: I-R1, I-R3, I-D1, I-N1, I-C1 ok
+validação: I-R1, I-R2, I-R3, I-D1, I-N1, I-C1 ok
 comissoes_por_lojista: 35 linha(s)
 divergencias_taxa: 233 linha(s)
 notas_a_emitir: 21 linha(s)
 lancamentos_classificados: 184 linha(s), 184 por REGRA
-pendencias: 18 linha(s)
+pendencias: 18 linha(s), 0 bloqueante(s)
+  ALERTA_ANTECIPACAO: 1
+  COMISSAO_NAO_POSITIVA: 1
+  CONFERIR_MES_SEGUINTE: 3
+  CONTESTACAO_PONTE: 6
+  DEVOLUCAO_LOJISTA: 1
+  DEVOLUCAO_PIX: 1
+  DIVERGENCIA_ORBE: 2
+  LANCAMENTO_SEM_ORIGEM: 1
+  REPASSE_ATIPICO: 1
+  SEM_CONTRATO: 1
 rastro: 5062 linha(s)

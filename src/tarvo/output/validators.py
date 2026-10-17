@@ -84,3 +84,15 @@ def validar_i_c1(lancamentos: list[dict], plano: dict) -> None:
               for l in lancamentos if l["conta_codigo"] not in plano or not plano[l["conta_codigo"]].analitica]
     if falhas:
         raise ValidationError(falhas)
+
+
+def validar_i_r2(canonicas: dict[str, set[str]], rastro: Rastro) -> None:
+    """I-R2: todo ref_origem do rastro existe na tabela canônica da sua fonte. Pega rastro que aponta para
+    uma linha que não existe (ref digitado em config, id montado errado) antes de virar número sem origem."""
+    faltam: dict[str, set[str]] = {}
+    for l in rastro.linhas():
+        if l.ref_origem not in canonicas.get(l.arquivo_origem, set()):
+            faltam.setdefault(l.arquivo_origem, set()).add(l.ref_origem)
+    if faltam:
+        raise ValidationError([f"I-R2 {arq}: {len(refs)} ref(s) sem linha de origem, ex.: {', '.join(sorted(refs)[:5])}"
+                               for arq, refs in sorted(faltam.items())])

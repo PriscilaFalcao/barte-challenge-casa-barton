@@ -180,7 +180,7 @@ A Helena **não valida conta a conta** (Casa Barton 11h01; Lucca 11h03): vale o 
 - **Conciliações determinísticas:**
   - TED de liquidação à Ponte = Σ(Valor R$ + IOF) das operações contratadas no dia: **21 de 21** batem (📄).
   - Transferências Aurora → Meridiano pareadas pelo valor: 3 de 4 têm par no mês; a de L92 vira conferência no mês seguinte (✅ cai em 01/10).
-  - PIX de lojista × operações da Ponte: **não bate** (📄, ver I8). Não usamos.
+  - PIX de lojista × operações da Ponte: bate no total do mês (sobra exatamente R$ 18.240,00, registrado em `execucao.log`), mas não por lojista (📄, ver I8). Não serve para apontar qual PIX está sobrando.
 - **Orbe × banco:** não conciliamos parcela a parcela (✅ Insper AI 22h09). Classificamos as TEDs e registramos a limitação.
 
 ### 2.6 Pendências e quem decide
@@ -209,7 +209,7 @@ A Helena **não valida conta a conta** (Casa Barton 11h01; Lucca 11h03): vale o 
 | I5 | Mundo Aberto a 1,5% contra 1,2% | 23 operações (1,4991% a 1,5009%); ≈ R$ 1.418,85 cheio | Divergência + pendência de contestação |
 | I6 | PC-0926-0162 duplicada; rodapé e Resumo contam as duas | Linhas 76 e 77 do XLSX diferem só em "reprocessada"; o banco prova R$ 55.811,47 a menos | Conta uma vez + pendência |
 | I7 | 4 spreads negativos | PC-0926-0210, -0326, -0491, -0545 (Σ −R$ 1.834,05); nos 4 a observação é "Taxa travada" | R5 + R12 |
-| I8 | PIX de R$ 18.240 da Ponte Aérea sem operação | MRD2026090425 (17/09), memo sem acento. ✅ É adiantamento de uma remessa que sai em outubro. **Correção (📄, 17/10):** outros times afirmaram que os demais PIX do Meridiano "batem centavo a centavo" com Σ(Valor R$ + IOF) das remessas. Conferimos e não batem, nem por dia nem por janela até o próximo PIX (ex.: Rota recebeu R$ 668 mil em PIX contra R$ 141 mil de operações no mês). Só a TED de liquidação à Ponte bate por dia | 2.1.02.001 + conferência em outubro |
+| I8 | PIX de R$ 18.240 da Ponte Aérea sem operação | MRD2026090425 (17/09), memo sem acento. ✅ É adiantamento de uma remessa que sai em outubro. **Correção (📄, 17/10):** outros times afirmaram que os demais PIX do Meridiano "batem centavo a centavo" com Σ(Valor R$ + IOF) das remessas. Conferimos: **no total do mês** batem, porque Σ PIX recebidos − Σ TEDs à Ponte = exatamente R$ 18.240,00. Mas **por lojista** não batem, nem por dia nem por janela até o próximo PIX (ex.: Rota recebeu R$ 668 mil em PIX contra R$ 141 mil de operações próprias). Só a TED de liquidação à Ponte bate por dia | 2.1.02.001 + conferência em outubro |
 | I9 | Repasse de R$ 112.220,15 à Atlas em 10/09 (Aurora L34) | No mesmo dia da primeira transação, com só R$ 1.247,52 de líquido na Orbe; 5 antecipações, 2 revertidas | Pendência ❓ (risco) |
 | I10 | Devolução de R$ 12.400 da Mundo Aberto (L65) | Não bate com nenhum dos PIX enviados (48.714,59 e 88.746,05) | Pendência |
 | I11 | Transferência de R$ 300 mil (L92) sem par no Meridiano | ✅ cai em 01/10 | 1.1.09.001; conferir em outubro |

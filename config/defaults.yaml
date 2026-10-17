@@ -107,3 +107,25 @@ alertas_lancamento:
     valor: "18240.00"
     tipo: CONFERIR_MES_SEGUINTE
     motivo: "PIX de R$ 18.240,00 da Ponte Aérea Estudantil sem operação na Ponte em setembro: é dinheiro de uma remessa que sai em outubro (Helena, resposta ao Mateus). Fica em Recursos de lojistas para remessas; conferir a operação no relatório da Ponte de outubro."
+
+# ---------------------------------------------------------------------------------------------------------
+# Pendências (PRD 7.8 e 8.5). `quem_decide` por tipo: ✅ cadastro e contrato com o comercial (Casa Barton
+# 11h01); devolução ao lojista e alerta de antecipação com a Helena e o comercial. Tipo ausente aqui usa o
+# default do código. `bloqueantes`: tipos que mudam comissão ou nota; o mês só fecha sem eles (gate G4).
+quem_decide:
+  DIVERGENCIA_ORBE: Helena
+  CONTESTACAO_PONTE: Helena
+  COMISSAO_NAO_POSITIVA: Helena
+  SEM_CONTRATO: Diego
+  DEVOLUCAO_LOJISTA: Helena e Diego
+  ALERTA_ANTECIPACAO: Helena e Diego
+  LANCAMENTO_SEM_ORIGEM: Helena
+  REPASSE_ATIPICO: Helena
+  DEVOLUCAO_PIX: Helena
+  ENTIDADE_NAO_RESOLVIDA: Diego
+  CONTRATO_AMBIGUO: Diego
+  CLASSIFICACAO_BAIXA_CONFIANCA: Helena
+  CONFERIR_MES_SEGUINTE: Helena
+  STATUS_PONTE_DESCONHECIDO: Helena
+
+bloqueantes: [ENTIDADE_NAO_RESOLVIDA, CONTRATO_AMBIGUO, STATUS_PONTE_DESCONHECIDO]

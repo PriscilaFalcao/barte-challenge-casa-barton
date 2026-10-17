@@ -328,7 +328,7 @@ Em setembro, os 184 lançamentos (84 Aurora, 100 Meridiano) saem por REGRA.
 
 - **TED de liquidação à Ponte** = Σ(`Valor R$` + `IOF R$`) das operações contratadas no dia, com a duplicata contada uma vez. Em setembro, 21 de 21 batem. A que não bater vira `LANCAMENTO_SEM_ORIGEM`.
 - **Transferência Aurora → Meridiano**: pareada pelo valor com a TED de mesma titularidade no Meridiano. Saída sem par no mês vira `CONFERIR_MES_SEGUINTE` (L92, R$ 300 mil, ✅ cai em 01/10); entrada sem par vira `LANCAMENTO_SEM_ORIGEM`, com o lembrete de conferir a pendência do mês anterior.
-- **PIX de lojista × operações da Ponte: não é usada.** A premissa da v2 ("o PIX que não bate com nenhuma soma por lojista revela o R$ 18.240") foi testada e **não se sustenta**: os PIX recebidos não batem com Σ(Valor R$ + IOF) do lojista nem por dia nem por janela até o próximo PIX (ex.: Rota recebeu R$ 668 mil em PIX contra R$ 141 mil de operações no mês).
+- **PIX de lojista × operações da Ponte: só no total do mês.** A premissa da v2 ("o PIX que não bate com nenhuma soma por lojista revela o R$ 18.240") foi testada e **não se sustenta por lojista**: os PIX não batem com Σ(Valor R$ + IOF) do lojista nem por dia nem por janela até o próximo PIX (ex.: Rota recebeu R$ 668 mil em PIX contra R$ 141 mil de operações próprias). No total do mês batem: Σ PIX − Σ TEDs à Ponte = R$ 18.240,00 exatos, número que vai para o `execucao.log` como conferência.
 
 **Alertas pontuais** (`alertas_lancamento`): casos que nenhuma regra genérica detecta entram na configuração com `mes`, banco, ref, data e valor. Só abrem pendência e não mudam a conta. Se o lançamento não casar em todos os campos, a execução falha. Em setembro: L34 (repasse de R$ 112.220,15 à Atlas, `REPASSE_ATIPICO`) e MRD2026090425 (PIX de R$ 18.240, adiantamento de remessa de outubro, ✅ V1, `CONFERIR_MES_SEGUINTE`).
 
@@ -370,7 +370,9 @@ Antes de escrever qualquer arquivo, o validador roda e **aborta com erro** (não
 | I-B1 | cadeia de saldos da Aurora fecha |
 | I-D1 | nenhuma divergência de checkout com `taxa_aplicada == taxa_contratada` |
 
-Também escreve `saida/resumo.md` (legível para o financeiro: totais por linha, dinheiro em jogo, lista de pendências) e `saida/execucao.log` (arquivos lidos, linhas por fonte e no mês, linhas descartadas por motivo, avisos, validações e contagem de cada saída; sem carimbo de data, para ser idêntico entre execuções).
+I-R2, I-R3, I-D1, I-N1 e I-C1 estão implementados (B7). I-B1 é verificado na leitura do extrato Aurora, e I-C2 no escritor das CSVs. `pendencias.csv` ganha as colunas extras `bloqueante` (S/N, tipos listados em `bloqueantes` do `defaults.yaml`) e `quem_decide`, que vem da configuração (`quem_decide`) e não do código.
+
+Também escreve `saida/resumo.md` (legível para o financeiro, com valores em R$ no formato brasileiro: situação do fechamento, que diz se pode fechar sem pendência bloqueante; resultado do mês; notas a emitir; dinheiro em jogo, com cada pendência pelo valor e sem somar naturezas diferentes; pendências por responsável, com o motivo; divergências por lojista e natureza; classificação dos extratos por conta) e `saida/execucao.log` (arquivos lidos, linhas por fonte e no mês, linhas descartadas por motivo, avisos, validações e contagem de cada saída; sem carimbo de data, para ser idêntico entre execuções).
 
 ---
 

@@ -59,6 +59,8 @@ class Config:
     regras_lancamento: tuple[RegraLancamento, ...] = ()
     conta_provisoria: dict[str, str] = field(default_factory=dict)
     alertas_lancamento: tuple[AlertaLancamento, ...] = ()
+    quem_decide: dict[TipoExcecao, str] = field(default_factory=dict)
+    bloqueantes: frozenset[TipoExcecao] = frozenset()
 
 
 def _override(o: dict) -> OverrideTaxa:
@@ -103,4 +105,6 @@ def carregar_defaults(path: Path = DEFAULTS_PATH) -> Config:
         regras_lancamento=tuple(_regra(r) for r in dados.get("regras_lancamento") or []),
         conta_provisoria={str(k): str(v) for k, v in (dados.get("conta_provisoria") or {}).items()},
         alertas_lancamento=tuple(_alerta(a) for a in dados.get("alertas_lancamento") or []),
+        quem_decide={TipoExcecao(k): str(v) for k, v in (dados.get("quem_decide") or {}).items()},
+        bloqueantes=frozenset(TipoExcecao(t) for t in dados.get("bloqueantes") or []),
     )
