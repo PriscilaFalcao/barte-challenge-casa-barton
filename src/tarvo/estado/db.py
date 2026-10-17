@@ -161,3 +161,11 @@ class Estado:
         self.con.execute("INSERT INTO agentes_chamadas (execucao_id, agente, id_saida, hash, origem, resultado, detalhe) "
                          "VALUES (?, ?, ?, ?, ?, ?, ?)", (execucao_id, agente, id_saida, hash_, origem, resultado, detalhe))
         self.con.commit()
+
+    def chamadas(self, execucao_id: int) -> list[dict]:
+        rows = self.con.execute(
+            "SELECT agente, id_saida, origem, resultado, detalhe FROM agentes_chamadas "
+            "WHERE execucao_id = ? ORDER BY id",
+            (execucao_id,),
+        )
+        return [dict(row) for row in rows]

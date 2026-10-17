@@ -150,6 +150,17 @@ def test_dash_m_prints_clean_error_and_exits_1_on_wrong_month(dados, tmp_path):
     assert "nenhuma linha" in r.stderr and "Traceback" not in r.stderr
 
 
+def test_web_command_starts_the_web_server(monkeypatch):
+    from tarvo import web
+
+    started = []
+    monkeypatch.setattr(web, "serve", started.append)
+
+    main(["web", "--port", "8123"])
+
+    assert started == [8123]
+
+
 def test_fechar_writes_lancamentos_classificados_that_reconcile(dados, tmp_path):
     main(["fechar", "--mes", "2026-09", "--dados", str(dados), "--saida", str(tmp_path)])
     lan = _ler(tmp_path / "lancamentos_classificados.csv")

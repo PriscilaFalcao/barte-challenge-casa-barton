@@ -145,9 +145,22 @@ def main(argv: list[str] | None = None) -> None:
     web.add_argument("--port", type=int, default=8000)
     a = ap.parse_args(argv)
 
-    res = fechar(a.mes, a.dados, a.saida)
-    def total(linha: str) -> Decimal:
-        return sum((c["comissao_brl"] for c in res.comissoes if c["linha_negocio"] == linha), Decimal("0"))
+    if a.cmd == "web":
+        from .web import serve
 
-    print(f"{a.mes}: comissão de checkout R$ {fmt(total('CHECKOUT'))}, remessa R$ {fmt(total('REMESSA'))}, "
-          f"{len(res.notas)} nota(s), {len(res.divergencias)} divergência(s), {len(res.excecoes)} pendência(s). Saídas em {a.saida}/")
+        serve(a.port)
+        return
+    if a.cmd == "fechar":
+        _cmd_fechar(a)
+        return
+    if a.cmd == "fila":
+        _cmd_fila(a)
+        return
+    if a.cmd == "decidir":
+        _cmd_decidir(a)
+        return
+    if a.cmd == "regras":
+        _cmd_regras(a)
+        return
+
+    ap.error("comando desconhecido")

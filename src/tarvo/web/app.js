@@ -5,18 +5,37 @@ const state = {
   table: "comissoes",
   rows: [],
   lastFocus: null,
+  accounts: [],
+  eventSource: null,
+  closed: false,
+  blockingCount: 0,
 };
 
 const labels = {
-  comissoes: { title: "Comissões", columns: ["lojista", "linha_negocio", "comissao_brl"] },
-  divergencias: { title: "Divergências", columns: ["cnpj", "linha_negocio", "ref_origem", "diferenca_brl"] },
-  notas: { title: "Notas", columns: ["tomador", "linha_negocio", "valor_brl"] },
-  pendencias: { title: "Pendências", columns: ["tipo", "ref_origem", "quem_decide", "valor_brl"] },
+  comissoes: { title: "Comissões", columns: ["lojista", "linha_negocio", "comissao_brl"], download: "comissoes_por_lojista.csv" },
+  divergencias: { title: "Divergências", columns: ["cnpj", "linha_negocio", "ref_origem", "diferenca_brl"], download: "divergencias_taxa.csv" },
+  notas: { title: "Notas", columns: ["tomador", "linha_negocio", "valor_brl"], download: "notas_a_emitir.csv" },
+  lancamentos: { title: "Extratos classificados", columns: ["banco", "data", "descricao", "valor", "conta_codigo", "metodo"], download: "lancamentos_classificados.csv" },
+  pendencias: { title: "Pendências", columns: ["tipo", "ref_origem", "quem_decide", "valor_brl"], download: "pendencias.csv" },
+  rastro: { title: "Rastro", columns: ["arquivo_origem", "ref_origem", "valor", "componente", "regra_id"], download: "rastro.csv" },
 };
 const columnLabels = {
   lojista: "Lojista", linha_negocio: "Linha", comissao_brl: "Comissão", cnpj: "CNPJ",
   ref_origem: "Referência", diferenca_brl: "Diferença", tomador: "Tomador",
   valor_brl: "Valor", tipo: "Tipo", quem_decide: "Responsável",
+  banco: "Banco", data: "Data", descricao: "Descrição", valor: "Valor",
+  conta_codigo: "Conta contábil", metodo: "Método", arquivo_origem: "Arquivo de origem",
+  componente: "Componente", regra_id: "Regra",
+};
+const downloadNames = {
+  "comissoes_por_lojista.csv": "Comissões",
+  "divergencias_taxa.csv": "Divergências",
+  "notas_a_emitir.csv": "Notas",
+  "lancamentos_classificados.csv": "Extratos classificados",
+  "pendencias.csv": "Pendências",
+  "rastro.csv": "Rastro",
+  "resumo.md": "Resumo",
+  "execucao.log": "Log da execução",
 };
 
 const emptyState = document.querySelector("#empty-state");
@@ -63,6 +82,7 @@ function renderSummary(target, summary) {
     ["Comissão de remessa", summary.remessa, "Operações da Ponte", false],
     ["Divergências", summary.divergences_total, `${summary.divergences_count} itens encontrados`, false],
     ["Notas a emitir", summary.notes_total, `${summary.notes_count} notas no período`, false],
+    ["Lançamentos classificados", summary.bank_entries_count.toLocaleString("pt-BR"), "Extratos Aurora e Meridiano", false],
     ["Pendências abertas", summary.pending_count.toLocaleString("pt-BR"), Object.entries(summary.pending_by_decider).map(([name, count]) => `${name}: ${count}`).join(" · ") || "Nenhuma pendência", false],
     ["Conferência do rastro", summary.reconciles ? "Tudo reconcilia" : "Revisar valores", summary.reconciles ? "Valores conciliados com as origens" : "Há valores sem reconciliação", summary.reconciles],
   ];
@@ -214,6 +234,33 @@ async function openDetails(record) {
         line.textContent = `${label}: ${value}`;
         item.append(line);
       }
+      const sourceButton = document.createElement("button");
+      sourceButton.className = "source-row-button";
+      sourceButton.type = "button";
+      sourceButton.textContent = "Ver linha original";
+      sourceButton.addEventListener("click", async () => {
+        sourceButton.disabled = true;
+        try {
+          const params = new URLSearchParams({ arquivo: trace.arquivo_origem, ref_origem: trace.ref_origem });
+          const sourceResult = await request(`/api/closures/${state.closureId}/source?${params}`);
+          const sourceDetails = document.createElement("details");
+          sourceDetails.className = "source-row-details";
+          sourceDetails.open = true;
+          const summary = document.createElement("summary");
+          summary.textContent = "Linha como recebida";
+          sourceDetails.append(summary);
+          for (const [name, value] of Object.entries(sourceResult.linha)) {
+            sourceDetails.append(displayValue(name, value));
+          }
+          item.append(sourceDetails);
+          sourceButton.remove();
+        } catch (error) {
+          showNotice(error.message);
+        } finally {
+          sourceButton.disabled = false;
+        }
+      });
+      item.append(sourceButton);
       content.append(item);
     }
   } catch (error) {
@@ -244,30 +291,471 @@ function updateFileStatus() {
     card.querySelector(".file-name").textContent = filename || "Escolher arquivo";
   });
   document.querySelector("#upload-status").textContent = complete
-    ? "3 de 3 arquivos enviados. Pronto para conferir."
-    : `${Object.keys(state.files).length} de 3 arquivos enviados.`;
+    ? "6 de 6 arquivos enviados. Pronto para conferir."
+    : `${Object.keys(state.files).length} de 6 arquivos enviados.`;
   document.querySelector("#validate-files").disabled = !complete;
+}
+
+function normalizeHeader(text) {
+  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/^\uFEFF/, "").toUpperCase();
+}
+
+async function identifyFile(file) {
+  const extension = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
+  if (extension === ".xlsx") return "taxas";
+  if (extension === ".eml") return "ponte";
+  if (extension === ".ofx") return "meridiano";
+  if (extension !== ".csv") throw new Error(`${file.name}: formato não aceito. Envie .csv, .xlsx, .eml ou .ofx.`);
+
+  const headerText = normalizeHeader(await file.slice(0, 8192).text());
+  if (headerText.includes("ID_TRANSACAO;DATA_MOVIMENTO;")) return "orbe";
+  if (headerText.split(/\r?\n/).some(line => line.startsWith("COD_CONTA;DESCRICAO;"))) return "plano";
+  if (headerText.split(/\r?\n/).some(line => /^DATA;LANCAMENTO;/.test(line))) return "aurora";
+  throw new Error(`${file.name}: não identifiquei o conteúdo deste CSV. Confira se é Orbe, plano de contas ou extrato Aurora.`);
+}
+
+async function uploadFile(file, slot) {
+  const result = await request(`/api/closures/${state.closureId}/files/${slot}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/octet-stream", "X-Filename": encodeURIComponent(file.name) },
+    body: file,
+  });
+  state.files = result.files;
+  updateFileStatus();
+}
+
+async function uploadBatch(fileList) {
+  const files = [...fileList];
+  const assignedSlots = new Set();
+  for (const file of files) {
+    const slot = await identifyFile(file);
+    if (assignedSlots.has(slot)) throw new Error(`Mais de um arquivo enviado para o campo ${slot}. Envie apenas um de cada tipo.`);
+    assignedSlots.add(slot);
+  }
+  for (const file of files) {
+    const slot = await identifyFile(file);
+    await uploadFile(file, slot);
+  }
+  notice.hidden = true;
+}
+
+function renderDownloads() {
+  const root = document.querySelector("#download-links");
+  root.replaceChildren(...Object.entries(downloadNames).map(([fileName, label]) => {
+    const link = document.createElement("a");
+    link.className = "download-link";
+    link.href = `/api/closures/${state.closureId}/download/${fileName}`;
+    link.download = fileName;
+    link.textContent = `↓ ${label}`;
+    return link;
+  }));
+}
+
+function createField(labelText, control, wide = false) {
+  const wrapper = document.createElement("label");
+  wrapper.className = `field-label${wide ? " wide" : ""}`;
+  wrapper.append(document.createTextNode(labelText), control);
+  return wrapper;
+}
+
+function createControl(tag, options = {}) {
+  const control = document.createElement(tag);
+  control.className = tag === "select" ? "" : "text-input";
+  control.required = Boolean(options.required);
+  control.name = options.name;
+  if (tag === "textarea") control.rows = 2;
+  if (options.placeholder) control.placeholder = options.placeholder;
+  if (tag === "input") control.type = options.type || "text";
+  return control;
+}
+
+function renderAgentCalls(calls) {
+  const root = document.querySelector("#agent-calls");
+  if (!calls.length) {
+    const empty = document.createElement("p");
+    empty.className = "helper-text";
+    empty.textContent = "Nenhuma chamada de agente registrada nesta execução.";
+    root.replaceChildren(empty);
+    return;
+  }
+  root.replaceChildren(...calls.map(call => {
+    const item = document.createElement("div");
+    item.className = "agent-call";
+    const name = document.createElement("strong");
+    name.textContent = `${call.agente} · ${call.id_saida}`;
+    const details = document.createElement("span");
+    details.className = "agent-call-meta";
+    details.textContent = `${call.origem} · ${call.resultado}${call.detalhe ? ` · ${call.detalhe}` : ""}`;
+    item.append(name, details);
+    return item;
+  }));
+}
+
+function renderExecutionEvents(events) {
+  const root = document.querySelector("#execution-events");
+  const labelsByStage = {
+    ingestao: "Leitura dos arquivos",
+    checkout: "Conciliação Orbe",
+    divergencias: "Apuração de divergências",
+    remessa: "Conciliação de remessas",
+    notas: "Notas a emitir",
+    bancos: "Classificação bancária",
+    agentes: "Revisão assistida",
+    consolidacao: "Validação e consolidação",
+  };
+  root.replaceChildren(...events.map(event => {
+    const item = document.createElement("li");
+    item.className = "event-item";
+    const name = document.createElement("strong");
+    name.textContent = labelsByStage[event.etapa] || event.etapa;
+    const detail = document.createElement("span");
+    detail.className = "event-detail";
+    detail.textContent = Object.entries(event.detalhe || {}).map(([key, value]) => `${key}: ${value}`).join(" · ") || "Etapa registrada pelo motor";
+    const status = document.createElement("span");
+    status.className = "event-status";
+    status.textContent = event.status === "executada" ? "Concluída" : event.status;
+    item.append(name, detail, status);
+    return item;
+  }));
+}
+
+async function loadActivity() {
+  const activity = await request(`/api/closures/${state.closureId}/activity`);
+  const stageLabels = {
+    EXECUTANDO: "Execução em andamento",
+    CONCLUIDA: "Execução concluída",
+    ERRO: "Execução com erro",
+  };
+  document.querySelector("#execution-title").textContent =
+    stageLabels[activity.execution?.status] || "Acompanhamento do motor";
+  document.querySelector("#execution-status").textContent = activity.error ||
+    (activity.execution?.terminada_em ? `Finalizada em ${activity.execution.terminada_em}` : "Preparando etapas e checkpoints…");
+  const badge = document.querySelector("#execution-badge");
+  badge.textContent = stageLabels[activity.execution?.status] || activity.status;
+  badge.className = `badge ${activity.status === "running" ? "badge-running" : activity.status === "failed" ? "badge-blocked" : "badge-success"}`;
+  renderExecutionEvents(activity.events || []);
+  renderAgentCalls(activity.agent_calls || []);
+}
+
+function renderDecisionFields(container, decisionType, scope, item) {
+  container.replaceChildren();
+  if (decisionType === "NOTA") {
+    const note = createControl("textarea", { name: "texto", required: true, placeholder: "Descreva a decisão para este caso." });
+    container.append(createField("Decisão registrada", note, true));
+    return;
+  }
+  if (decisionType === "CONTA") {
+    const account = document.createElement("select");
+    account.name = "conta";
+    account.required = true;
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Selecione uma conta analítica";
+    account.append(placeholder);
+    for (const entry of state.accounts) {
+      const option = document.createElement("option");
+      option.value = entry.codigo;
+      option.textContent = `${entry.codigo} · ${entry.descricao}`;
+      account.append(option);
+    }
+    container.append(createField("Conta contábil", account, true));
+    if (scope === "regra") {
+      const bank = document.createElement("select");
+      bank.name = "banco";
+      bank.required = true;
+      for (const [value, label] of [["AURORA", "Banco Aurora"], ["MERIDIANO", "Banco Meridiano"]]) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        bank.append(option);
+      }
+      const pattern = createControl("input", { name: "padrao", required: true, placeholder: "Regex aplicada à descrição" });
+      container.append(createField("Banco", bank), createField("Padrão (regex)", pattern));
+    }
+    return;
+  }
+  if (decisionType === "EC_LOJISTA") {
+    const ec = createControl("input", { name: "ec", required: true, placeholder: "Código EC" });
+    const cnpj = createControl("input", { name: "cnpj", required: true, placeholder: "CNPJ do lojista" });
+    container.append(createField("EC", ec), createField("CNPJ", cnpj));
+  }
+}
+
+function renderQueue(items) {
+  const root = document.querySelector("#queue-items");
+  const empty = document.querySelector("#queue-empty");
+  const badge = document.querySelector("#queue-count");
+  badge.textContent = `${items.length} ${items.length === 1 ? "pendência" : "pendências"} · ${state.blockingCount} bloqueante(s)`;
+  empty.hidden = items.length !== 0;
+  root.hidden = items.length === 0;
+  root.replaceChildren(...items.map(item => {
+    const card = document.createElement("article");
+    card.className = "queue-item";
+    const header = document.createElement("div");
+    header.className = "queue-item-heading";
+    const headingBlock = document.createElement("div");
+    const title = document.createElement("h3");
+    title.textContent = `${item.tipo} · ${item.id_saida}`;
+    const metadata = document.createElement("p");
+    metadata.className = "queue-metadata";
+    metadata.textContent = `${item.ref_origem} · ${formatValue("valor_brl", item.valor_brl)} · Responsável: ${item.quem_decide}`;
+    headingBlock.append(title, metadata);
+    const status = document.createElement("span");
+    status.className = `badge ${item.bloqueante === "S" ? "badge-blocked" : "badge-running"}`;
+    status.textContent = item.bloqueante === "S" ? "Bloqueante" : item.estado;
+    header.append(headingBlock, status);
+    const reason = document.createElement("p");
+    reason.textContent = item.motivo;
+    card.append(header, reason);
+    if (item.proposta) {
+      const proposal = document.createElement("p");
+      proposal.textContent = `Proposta do agente: ${typeof item.proposta === "string" ? item.proposta : JSON.stringify(item.proposta)}`;
+      card.append(proposal);
+    }
+
+    const form = document.createElement("form");
+    form.className = "decision-form";
+    const type = document.createElement("select");
+    type.name = "tipo_decisao";
+    for (const [value, label] of [
+      ["NOTA", "Registrar observação"],
+      ["CONTA", "Atribuir conta contábil"],
+      ["EC_LOJISTA", "Vincular EC a lojista"],
+    ]) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      type.append(option);
+    }
+    const scope = document.createElement("select");
+    scope.name = "escopo";
+    for (const [value, label] of [["caso", "Somente este caso"], ["regra", "Promover como regra"]]) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      scope.append(option);
+    }
+    const dynamicFields = document.createElement("div");
+    dynamicFields.className = "decision-fields wide";
+    const author = createControl("input", { name: "autor", required: true, placeholder: "Nome de quem decide" });
+    author.value = "Financeiro";
+    const reasonInput = createControl("input", { name: "motivo", required: true, placeholder: "Justificativa da decisão" });
+    const submit = document.createElement("button");
+    submit.className = "button button-primary wide";
+    submit.type = "submit";
+    submit.textContent = "Registrar decisão e reexecutar";
+    const scopeField = createField("Aplicação", scope);
+    form.append(createField("Tipo de decisão", type), scopeField, dynamicFields,
+      createField("Responsável", author), createField("Motivo", reasonInput), submit);
+    const updateFields = () => {
+      scopeField.hidden = type.value !== "CONTA";
+      if (type.value === "EC_LOJISTA") scope.value = "regra";
+      else if (type.value === "NOTA") scope.value = "caso";
+      scope.disabled = type.value !== "CONTA";
+      renderDecisionFields(dynamicFields, type.value, scope.value, item);
+    };
+    type.addEventListener("change", updateFields);
+    scope.addEventListener("change", updateFields);
+    updateFields();
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      submit.disabled = true;
+      const data = Object.fromEntries(new FormData(form));
+      data.id_saida = item.id_saida;
+      try {
+        await request(`/api/closures/${state.closureId}/decisions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+        document.querySelector("#execution-panel").hidden = false;
+        await monitorExecution();
+        showNotice("Decisão registrada. O motor está reexecutando as etapas afetadas.", false);
+      } catch (error) {
+        showNotice(error.message);
+        submit.disabled = false;
+      }
+    });
+    card.append(form);
+    return card;
+  }));
+}
+
+async function loadQueue() {
+  const queue = await request(`/api/closures/${state.closureId}/queue`);
+  if (!state.closed) {
+    const accountResult = await request(`/api/closures/${state.closureId}/accounts`);
+    state.accounts = accountResult.accounts;
+  }
+  state.blockingCount = queue.blocking_count;
+  renderQueue(queue.items);
+  document.querySelector("#validation-queue").hidden = false;
+  updateClosePanel();
+}
+
+function updateClosePanel() {
+  const panel = document.querySelector("#close-panel");
+  panel.hidden = false;
+  const closedRecord = state.closureRecord;
+  const form = document.querySelector("#close-form");
+  const message = document.querySelector("#close-message");
+  const button = document.querySelector("#close-confirm");
+  if (state.closed && closedRecord) {
+    document.querySelector("#close-title").textContent = "Competência fechada";
+    message.textContent = `Fechada por ${closedRecord.closed_by} em ${closedRecord.closed_at}. Snapshot SHA-256 registrado para cada arquivo de saída.`;
+    form.hidden = true;
+    return;
+  }
+  document.querySelector("#close-title").textContent = "Revisão final";
+  form.hidden = false;
+  button.disabled = state.blockingCount > 0;
+  message.textContent = state.blockingCount > 0
+    ? `Resolva as ${state.blockingCount} pendência(s) bloqueante(s) e reexecute antes de fechar.`
+    : "Sem pendências bloqueantes. Registre o responsável e a justificativa para fechar.";
+}
+
+async function showCompletedClosure(result) {
+  state.month = result.month;
+  state.closed = result.closed;
+  state.closureRecord = result.closure_record;
+  uploadPanel.hidden = true;
+  validationPanel.hidden = true;
+  document.querySelector("#execution-panel").hidden = false;
+  resultsPanel.hidden = false;
+  document.querySelector("#results-month").textContent = formatMonth(result.month);
+  document.querySelector("#download-all").href = `/api/closures/${state.closureId}/download/todos.zip`;
+  renderSummary(document.querySelector("#results-summary"), result.summary);
+  renderDownloads();
+  await Promise.all([loadActivity(), loadQueue()]);
+  await selectTable(state.table || "comissoes");
+  setWorkflow(state.closed ? "close" : state.blockingCount ? "validation" : "outputs");
+}
+
+async function monitorExecution() {
+  if (state.eventSource) state.eventSource.close();
+  const panel = document.querySelector("#execution-panel");
+  const runButton = document.querySelector("#run-closure");
+  runButton.disabled = true;
+  runButton.textContent = "Executando motor…";
+  document.querySelectorAll(".decision-form button").forEach(button => { button.disabled = true; });
+  document.querySelector("#close-confirm").disabled = true;
+  panel.hidden = false;
+  document.querySelector("#execution-title").textContent = "Execução em andamento";
+  document.querySelector("#execution-status").textContent = "Acompanhando as etapas do motor em tempo real…";
+  document.querySelector("#execution-badge").textContent = "Executando";
+  document.querySelector("#execution-badge").className = "badge badge-running";
+  document.querySelector("#execution-events").replaceChildren();
+  document.querySelector("#agent-calls").replaceChildren();
+  setWorkflow("run");
+  await loadActivity();
+  const source = new EventSource(`/api/closures/${state.closureId}/events`);
+  state.eventSource = source;
+  source.addEventListener("progress", () => {
+    loadActivity().catch(error => showNotice(error.message));
+  });
+  source.addEventListener("complete", async event => {
+    source.close();
+    state.eventSource = null;
+    const result = JSON.parse(event.data);
+    if (result.status === "completed" || result.status === "closed") {
+      await showCompletedClosure(result);
+      showNotice("Execução concluída. Confira as saídas e a fila de validações.", false);
+    } else {
+      document.querySelector("#execution-title").textContent = "Execução com erro";
+      document.querySelector("#execution-status").textContent = result.error || "O motor não concluiu esta execução.";
+      document.querySelector("#execution-badge").textContent = "Erro";
+      document.querySelector("#execution-badge").className = "badge badge-blocked";
+      showNotice(result.error || "O motor não concluiu esta execução.");
+      setWorkflow("run");
+      document.querySelectorAll(".decision-form button").forEach(button => { button.disabled = false; });
+    }
+    runButton.disabled = false;
+    runButton.innerHTML = 'Executar fechamento <span aria-hidden="true">→</span>';
+  });
+}
+
+async function startRun() {
+  await request(`/api/closures/${state.closureId}/run`, { method: "POST" });
+  validationPanel.hidden = true;
+  resultsPanel.hidden = true;
+  await monitorExecution();
+}
+
+async function restoreSavedClosure() {
+  const closureId = localStorage.getItem("tarvo.closureId");
+  if (!closureId) return;
+  try {
+    const result = await request(`/api/closures/${closureId}`);
+    state.closureId = result.id;
+    state.month = result.month;
+    state.files = result.files;
+    state.closed = result.closed;
+    state.closureRecord = result.closure_record;
+    emptyState.hidden = true;
+    closureView.hidden = false;
+    document.querySelector("#month-label").textContent = formatMonth(result.month);
+    updateFileStatus();
+    if (result.status === "uploading") {
+      uploadPanel.hidden = false;
+      validationPanel.hidden = true;
+      resultsPanel.hidden = true;
+      setWorkflow("files");
+    } else if (result.status === "validated" || result.status === "failed") {
+      uploadPanel.hidden = true;
+      validationPanel.hidden = false;
+      resultsPanel.hidden = true;
+      if (result.summary) renderSummary(document.querySelector("#preview-summary"), result.summary);
+      document.querySelector("#run-closure").textContent = result.status === "failed" ? "Tentar novamente →" : "Executar fechamento →";
+      setWorkflow("run");
+      if (result.status === "failed") {
+        document.querySelector("#execution-panel").hidden = false;
+        await loadActivity();
+      }
+    } else if (result.status === "running") {
+      uploadPanel.hidden = true;
+      validationPanel.hidden = true;
+      await monitorExecution();
+    } else if (result.status === "completed" || result.status === "closed") {
+      await showCompletedClosure(result);
+    }
+  } catch (error) {
+    showNotice(`Não foi possível restaurar o fechamento salvo: ${error.message}`);
+  }
 }
 
 async function createClosure() {
   const month = document.querySelector("#month-input").value;
   if (!month) return;
   try {
+    if (state.eventSource) state.eventSource.close();
+    state.eventSource = null;
     const result = await request("/api/closures", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ month }),
     });
     state.closureId = result.id;
+    localStorage.setItem("tarvo.closureId", result.id);
     state.month = result.month;
     state.files = {};
+    state.table = "comissoes";
+    state.rows = [];
     emptyState.hidden = true;
     closureView.hidden = false;
     uploadPanel.hidden = false;
     validationPanel.hidden = true;
     resultsPanel.hidden = true;
+    document.querySelector("#execution-panel").hidden = true;
+    document.querySelector("#validation-queue").hidden = true;
+    document.querySelector("#close-panel").hidden = true;
+    state.closed = false;
+    state.closureRecord = null;
+    state.accounts = [];
+    state.blockingCount = 0;
     document.querySelector("#month-label").textContent = formatMonth(result.month);
     document.querySelector("#table-search").value = "";
+    document.querySelector("#batch-files").value = "";
+    document.querySelectorAll(".file-card input").forEach(input => { input.value = ""; });
     notice.hidden = true;
     updateFileStatus();
     setWorkflow("files");
@@ -295,19 +783,47 @@ document.querySelectorAll(".file-card input").forEach(input => {
     const slot = input.closest(".file-card").dataset.slot;
     if (!file) return;
     try {
-      const result = await request(`/api/closures/${state.closureId}/files/${slot}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/octet-stream", "X-Filename": encodeURIComponent(file.name) },
-        body: file,
-      });
-      state.files = result.files;
-      updateFileStatus();
+      await uploadFile(file, slot);
       notice.hidden = true;
     } catch (error) {
       showNotice(error.message);
       input.value = "";
     }
   });
+});
+const batchDropzone = document.querySelector("#batch-dropzone");
+const batchInput = document.querySelector("#batch-files");
+batchInput.addEventListener("change", async () => {
+  if (!batchInput.files.length) return;
+  try {
+    await uploadBatch(batchInput.files);
+  } catch (error) {
+    showNotice(error.message);
+  } finally {
+    batchInput.value = "";
+  }
+});
+batchDropzone.addEventListener("dragover", event => {
+  event.preventDefault();
+  batchDropzone.classList.add("drag-over");
+});
+batchDropzone.addEventListener("dragleave", event => {
+  if (!batchDropzone.contains(event.relatedTarget)) batchDropzone.classList.remove("drag-over");
+});
+batchDropzone.addEventListener("drop", async event => {
+  event.preventDefault();
+  batchDropzone.classList.remove("drag-over");
+  try {
+    await uploadBatch(event.dataTransfer.files);
+  } catch (error) {
+    showNotice(error.message);
+  }
+});
+batchDropzone.addEventListener("keydown", event => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    batchInput.click();
+  }
 });
 document.querySelector("#validate-files").addEventListener("click", async event => {
   const button = event.currentTarget;
@@ -334,23 +850,40 @@ document.querySelector("#run-closure").addEventListener("click", async event => 
   const button = event.currentTarget;
   button.disabled = true;
   button.textContent = "Executando motor…";
-  setWorkflow("run");
   try {
-    const result = await request(`/api/closures/${state.closureId}/run`, { method: "POST" });
-    validationPanel.hidden = true;
-    resultsPanel.hidden = false;
-    document.querySelector("#results-month").textContent = formatMonth(result.month);
-    document.querySelector("#download-all").href = `/api/closures/${state.closureId}/download/todos.zip`;
-    renderSummary(document.querySelector("#results-summary"), result.summary);
-    await selectTable("comissoes");
-    setWorkflow("outputs");
+    await startRun();
     notice.hidden = true;
   } catch (error) {
     showNotice(error.message);
     setWorkflow("run");
   } finally {
-    button.disabled = false;
-    button.innerHTML = 'Executar fechamento <span aria-hidden="true">→</span>';
+    if (!state.eventSource) {
+      button.disabled = false;
+      button.innerHTML = 'Executar fechamento <span aria-hidden="true">→</span>';
+    }
+  }
+});
+document.querySelector("#close-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  const button = document.querySelector("#close-confirm");
+  button.disabled = true;
+  try {
+    const result = await request(`/api/closures/${state.closureId}/close`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        autor: document.querySelector("#close-author").value,
+        motivo: document.querySelector("#close-reason").value,
+      }),
+    });
+    state.closed = result.closed;
+    state.closureRecord = result.closure_record;
+    await showCompletedClosure(result);
+    showNotice("Competência fechada e snapshot das saídas registrado.", false);
+  } catch (error) {
+    showNotice(error.message);
+  } finally {
+    button.disabled = state.blockingCount > 0 || state.closed;
   }
 });
 document.querySelectorAll(".tab").forEach(tab => tab.addEventListener("click", () => selectTable(tab.dataset.table)));
@@ -360,6 +893,15 @@ document.querySelector("#drawer-backdrop").addEventListener("click", closeDrawer
 document.querySelectorAll("[data-notice]").forEach(link => link.addEventListener("click", event => {
   event.preventDefault();
   showNotice(link.dataset.notice, false);
+}));
+document.querySelectorAll("[data-section]").forEach(link => link.addEventListener("click", event => {
+  event.preventDefault();
+  const section = document.querySelector(`#${link.dataset.section}`);
+  if (closureView.hidden || !section || section.hidden) {
+    showNotice("Abra ou conclua um fechamento para acessar esta seção.", false);
+    return;
+  }
+  section.scrollIntoView({ behavior: "smooth", block: "start" });
 }));
 document.addEventListener("keydown", event => {
   if (event.key === "Escape" && drawer.classList.contains("open")) closeDrawer();
@@ -376,3 +918,4 @@ document.addEventListener("keydown", event => {
     }
   }
 });
+restoreSavedClosure();
