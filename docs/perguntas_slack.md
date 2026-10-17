@@ -339,3 +339,77 @@ Sempre. Todo mês a folha e os impostos do mês ficam provisionados no fechament
 [Financeiro] Resposta para MN AI (quem aprova)
 Taxa e condição comercial, quem aprova é o comercial, e eu registro. Regra de como fechar, aprovo eu. Nas minhas férias, hoje ninguém fecha. É exatamente por isso que vocês estão aqui. Registrar quem aprovou e quando é ótimo.
 — Helena, financeiro da Tarvo
+
+
+[financeiro] Turma do Barulho:
+
+1. Do recebimento dos arquivos à conclusão do fechamento, qual é a sequência das atividades, quem executa e confere cada etapa e qual registro indica que ela terminou? Quem dá a aprovação final para liberar o fechamento?
+
+2. Como se dividem as funções entre as três pessoas do financeiro? Quais três atividades mais consomem os oito dias úteis do fechamento e quanto tempo cada uma exige, separando trabalho manual, retrabalho e espera por informação do comercial ou de parceiros?
+
+3. Além das regras já esclarecidas no canal, quais decisões ou exceções ainda não documentadas dependem do conhecimento de uma única pessoa? Em quais atividades do fechamento elas aparecem?
+
+4. Na operação da Tarvo, em qual evento o desconto da taxa é efetivado no valor a receber pelo lojista e por qual canal ele vê esse desconto? A nota mensal apenas documenta a taxa já descontada ou gera algum valor adicional a pagar?
+
+5. Qual regra define a data e o valor dos repasses da Tarvo a cada lojista, e onde essas condições ficam registradas? A dúvida é sobre a regra operacional de repasse, sem reabrir a conciliação parcela por parcela neste fechamento.
+
+6. Depois que a Ponte conclui uma contestação, como comunica o resultado e qual documento comprova a correção? Quem na Tarvo confere esse retorno e registra o ajuste no fechamento correspondente?
+1 respostamanuel.freitas  [10h44]
+[Financeiro] Resposta para Turma do Barulho
+Boa pergunta, ninguém tinha perguntado como a gente trabalha.
+1. A sequência é esta:
+
+baixar o relatório da Orbe e o e-mail da Ponte, e exportar os dois extratos;
+casar as transações da Orbe com a planilha de taxas e calcular a comissão por lojista;
+fazer o mesmo com a remessa;
+classificar os extratos no ERP;
+montar as notas.
+Quem executa são as duas analistas, e quem confere e aprova sou eu. O registro de que uma etapa terminou é uma aba de controle na mesma planilha, onde cada uma marca “ok” e a data. Não tem nada além disso.
+2. A Bia cuida do checkout e da planilha de taxas. O Caio cuida dos bancos e das remessas. Eu confiro, decido as exceções e falo com o comercial, a Orbe e a Ponte. O que mais pesa nos 8 dias:
+
+Comissão de checkout, uns 3 dias. Metade é trabalho manual, casando nome com EC e CNPJ. A outra metade é retrabalho, quando a planilha está desatualizada.
+Remessa e Ponte, uns 2 dias. A maior parte é espera: perguntar à Ponte e ao comercial e aguardar a resposta.
+Classificar os extratos, uns 2 dias. Quase tudo manual, linha por linha.
+O último dia é para as notas e a minha revisão.
+3. Quase tudo que vocês já descobriram aqui no canal estava só na minha cabeça: as condições que o comercial combinou, quem é quem entre os nomes da Orbe e os CNPJs, o que aceito ou contesto da Ponte e o que já estava provisionado. Aparece na comissão, na remessa e na classificação. Se eu faltar, ninguém sabe essas regras.
+4. A Orbe já liquida o líquido: a taxa é descontada na hora em que ela paga, e o lojista vê no extrato de repasse que a gente manda. A nota só documenta a taxa que já foi descontada e não gera cobrança nova. Por isso, quando a Orbe cobra a mais, o lojista já recebeu a menos e eu preciso devolver.
+5. A gente repassa duas vezes por mês, perto do dia 10 e perto do dia 24, o que a Orbe já liquidou até ali. A regra está no contrato de adesão de cada lojista, que fica numa pasta do comercial.
+6. A Ponte responde por e-mail e manda o ajuste no relatório do mês seguinte, como crédito ou débito. Eu confiro e registro no fechamento do mês em que o ajuste aparece.
+— Helena, financeiro da Tarvo
+
+
+[Logística] Novos horários, checkpoints e dúvidas
+
+O painel passou do horário, então ajustamos os marcos do dia para devolver esse tempo a vocês:
+
+- 11h45 — checkpoint 1 (opcional)
+- 16h00 — checkpoint 2 (opcional)
+- 17h45 — fim do atendimento do financeiro
+
+Continua igual:
+- 18h30 — link do repositório por e-mail
+- 19h00 — link do pitch por e-mail
+- 19h30 — apresentação dos finalistas
+- 20h30 — premiação
+
+Checkpoints
+Não são obrigatórios. Servem para vocês pararem 10 minutos, olharem o plano e chegarem às 18h30 com algo que funciona. Quem mandar recebe uma devolutiva curta da banca. *Uma pessoa de cada time* manda por mensagem privada para o Manuel Freitas, começando com o nome do time.
+
+Checkpoint 1 · 11h45 · o plano
+1. Causa raiz: em até duas frases, por que o fechamento da Tarvo é lento e erra
+2. Nível que vão entregar: mínimo, alvo ou extra
+3. Plano até 18h30, em 2 a 4 marcos com horário
+4. Três premissas ainda não confirmadas, e o que muda se estiverem erradas
+5. O que fica de fora de propósito
+6. Quem faz o quê (duplas e trios)
+
+Checkpoint 2 · 16h00 · a reta final
+1. O que já roda de ponta a ponta hoje
+2. O que mudou no plano desde a manhã, e por quê
+3. O que vão cortar para garantir a entrega às 18h30
+4. O maior risco para a entrega, e o que estão fazendo sobre ele
+5. Em que a banca pode ajudar (formato, entrega, logística)
+
+Centralizem suas dúvidas, aqui no canal, com `[Financeiro]` ou `[Logística]` e o nome do time, uma por thread. Queremos que todos tenham o mesmo contexto.
+
+— Organização
