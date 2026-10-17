@@ -1,0 +1,259 @@
+Alex Chequer  [19h57]
+Boa noite pessoal, o documento diz que as perguntas ao cliente devem ser feitas no canal #tarvo-financeiro, porém ainda não foi criado. Mandamos por aqui memso ou esperamos para criarem esse outro canal?
+3 respostasmanuel.freitas  [19h59]
+podem enviar aqui. explicitem na thread de duvida se é tarvo ou hackaton
+Alex Chequer  [20h01]
+Dúvida para a Tarvo:
+Fox AI: base da comissão de checkout
+
+Ficamos com uma duvida em relacao ao checkout. Para calcular a comissão de checkout de cada lojista, qual valor devemos usar?
+
+(a) a taxa que a Orbe efetivamente cobrou (valor_taxa do relatório), ou
+(b) o valor bruto × a taxa contratada na planilha?
+
+Quando as duas diferem, qual delas vai para a nota fiscal? E a diferença é devolvida ao lojista?
+manuel.freitas  [20h05]
+A gente fatura pela taxa contratada: valor bruto × taxa da planilha, linha por linha. O valor_taxa do relatório é o que a Orbe cobrou, e nem sempre bate com o contrato.
+Na nota fiscal vai a comissão calculada pela taxa contratada.
+Quando a taxa aplicada é diferente da contratada, é divergência. Se a Orbe cobrou a mais, a diferença volta para o lojista e eu cobro a Orbe. Isso eu decido, não vai automático. Preciso ver cada caso com transação e valor.
+
+
+
+Nader Taha  [20h04]
+[financeiro] MN AI: Quando uma venda é estornada, a Tarvo devolve a taxa ao lojista e isso abate a comissão do mês? E se a venda original for de agosto? Ex.: TX88444848 (Oxford Prep, estorno de -R$ 2.193,16 em 01/09 de uma venda de 22/08, taxa -R$ 83,12). Entra em setembro, volta para agosto ou fica fora?
+1 respostamanuel.freitas  [20h06]
+[Financeiro] Resposta para MN AI
+Sim. Estorno devolve a taxa ao lojista e abate a comissão do mês.
+Venda de agosto estornada em setembro entra em setembro, que é o mês do estorno. Agosto já está fechado e não reabro. A taxa usada é a que valia na data da venda original.
+No exemplo da Oxford Prep, o estorno de 01/09 reduz a comissão de setembro da Oxford, pela taxa contratada que valia em 22/08.
+
+
+MN AI - murilo godoy  [20h08]
+[hackaton] MN AI: Foi comentado sobre o envio de um repositorio seguindo a estrutura passada no documento. Gostaria de saber se podemos criar outros alem desse ou a entrega tem que ser somente em um unico?
+1 respostamanuel.freitas  [20h13]
+[Logística] Resposta para MN AI
+A entrega é um repositório por time. É esse link que vocês mandam por e-mail até 18h30, e é só ele que a banca avalia.
+Durante o trabalho vocês podem usar quantos repositórios quiserem, mas o que for entregue precisa ter tudo: código, saida/, PROMPTS/, HIPOTESES.md e um README.md que rode a solução do zero. Se a solução tiver mais de uma parte (por exemplo, um backend e uma tela), coloquem as duas em pastas dentro do mesmo repositório.
+Partes que rodam em plataforma online (n8n, Lovable etc.) vão como link no README, com instruções de como testar. A regra das 18h30 vale para tudo: o que mudar depois não conta.
+
+
+
+Alex Chequer  [20h16]
+[financeiro] Fox AI: 4 ECs da Orbe não estão na planilha de taxas vigente (290 transações em setembro):
+
+- 1043300981 HORIZONTE INTERCAMBIO
+- 1043396662 HORIZONTE VIAGENS TURISMO
+- 1076801732 ATLAS IDIOMAS
+- 1038867654 KIWI EXPERIENCE TURISMO
+
+Quais são o CNPJ e as taxas de cada um? Eles correspondem às linhas "Horizonte Viagens", "Novo Horizonte Intercambio" e "Kiwi Experience" da planilha (que estão com o EC em branco)? A Atlas só aparece na aba de 2025: ela ainda é cliente ativa?
+1 respostamanuel.freitas  [20h24]
+[Financeiro] Resposta para Fox AI
+Boa pegada, o EC dessas três está faltando na planilha:
+
+1043300981 HORIZONTE INTERCAMBIO é a Novo Horizonte Intercâmbio, a linha “Novo Horizonte Intercambio”.
+1043396662 HORIZONTE VIAGENS TURISMO é a Horizonte Viagens e Turismo, a linha “Horizonte Viagens”. São duas empresas diferentes.
+1038867654 KIWI EXPERIENCE TURISMO é a Kiwi Experience, a linha “Kiwi Experience”.
+O CNPJ e as taxas dessas três estão nas linhas delas na aba vigente.
+A Atlas na aba de 2025 eu não sabia. Essa planilha passa por várias mãos. O que eu sei é que ela começou a transacionar com a gente em 10/09 e que não tenho contrato assinado dela na vigente. Não sei qual taxa vale. Não fatura a Atlas até o comercial confirmar.
+— Helena, financeiro da Tarvo
+
+
+
+Nader Taha  [20h26]
+[financeiro] MN AI: Pela resposta de vocês, a nota de checkout usa a comissão pela taxa contratada. Qual é a regra fixa para montar as notas todo mês?
+(a) CHECKOUT: uma nota por lojista por mês, com valor = vendas − estornos (pela taxa da venda original)? A ANTECIPACAO (bruto × taxa contratada, ex.: AN88444882 da Canguru) entra na mesma nota ou em nota separada? A REVERSAO ANTECIPACAO (ex.: AN88445114 reverte a AN88444915 da Mundo Aberto) só anula a original?
+(b) Se o saldo do lojista no mês der zero ou negativo por causa de estornos, não emite? O negativo passa para o mês seguinte?
+(c) REMESSA: o e-mail da Ponte fala em "nota fiscal de intermediação" para liberar os 50% do spread. O tomador é sempre a Ponte Câmbio (uma nota pelo total) ou cada lojista?
+(d) Existe texto padrão para a discriminação?1 respostamanuel.freitas  [20h47]
+[Financeiro] Resposta para MN AI (notas)
+(a) Sim. No checkout é uma nota por lojista por mês, no valor da comissão do mês pela taxa contratada, como respondi à Fox AI. Estorno abate pela taxa da venda original, como respondi a vocês antes. A antecipação entra na mesma nota, e a reversão só anula a taxa da antecipação que ela reverte.
+(b) Zero ou negativo não emite nota. O negativo não passa para o mês seguinte automaticamente. Eu trato com o lojista, então coloca como pendência para mim.
+(c) Na remessa, quem paga a gente é a Ponte. É uma nota só, com a Ponte Câmbio como tomadora, pelo total da nossa participação no mês. Não tem nota por lojista.
+(d) Não temos texto padrão. Algo simples com o serviço e a competência resolve.
+— Helena, financeiro da Tarvo
+
+
+
+
+MN AI - murilo godoy  [20h30]
+[financeiro] MN AI: No checkout vocês faturam pela taxa contratada e a diferença vira divergência. A remessa segue a mesma lógica?
+(a) A comissão da Tarvo é 50% do "Spread R$" realizado da Ponte ou 50% de valor × "Spread remessa" contratado na planilha? Quando a Ponte aplica mais que o contratado (ex.: Mundo Aberto, contrato de 1,2%, PC-0926-0011 a ~1,5%), isso é divergência a devolver ao lojista? Quanto vale o "padrão" quando a célula está em branco?
+(b) Para cada situação, a regra é fixa (conta / não conta) ou é decisão sua caso a caso?
+  - spread negativo com "Taxa travada no pedido (D-1)" (ex.: PC-0926-0210)
+  - mesmo Nº de operação repetido, um marcado "reprocessada" (ex.: PC-0926-0162)
+  - status "APROVADO C/ RESSALVA"
+  - contratada num mês e liquidada no seguinte (ex.: PC-0926-0002, liquidada em 01/10): vale a data de contratação ou a de liquidação?1 respostamanuel.freitas  [20h48]
+[Financeiro] Resposta para MN AI (remessa)
+(a) Na remessa a lógica é outra. A nossa comissão é 50% do “Spread R$” realizado, como está no e-mail da Ponte. A Mundo Aberto negociou 1,20% em julho e a Ponte já devia estar aplicando, então é divergência, e eu contesto com a Ponte. Célula em branco ou “padrão” é 1,5% sobre a PTAX de referência.
+(b) Essas eu já sei responder:
+
+Spread negativo: não aceito. A trava vale 2 horas pelo contrato, e essas passaram do prazo. Fica fora da comissão e da nota, e eu contesto.
+Operação repetida: o número da operação é único.
+“Aprovado c/ ressalva”: o status de compliance não muda nada para a gente.
+Data: vale a data de contratação.
+Para o que aparecer fora disso, me digam como vocês tratariam e por quê.
+— Helena, financeiro da Tarvo
+
+
+
+
+Lucca Landeiro - Lucca Landeiro  [20h36]
+[financeiro] Lucca Landeiro:
+
+1) Rota Global (EC 1074504011): a partir de 12/09 a Orbe passou a cobrar +0,50 p.p. em débito, crédito à vista e 2–6x (2,49/2,99/3,59% → 2,99/3,49/4,09%). A planilha vigente segue com as taxas antigas. Houve reajuste contratual ou é divergência?
+
+2) Casa do Estudante (EC 1018325654): a linha tem a observação "cliente estratégico - ver c/ comercial" e um comentário "conversar com Diego (comercial) sobre condição especial". Existe condição especial valendo em setembro, ou fatura pela taxa da planilha?
+
+3) Competência no extrato Aurora: folha, ISS, INSS, FGTS (identificados como 08/2026), IRRF, PIS e COFINS (sem competência no extrato) foram pagos em setembro. Também entrou em setembro o repasse de comissão 08/2026 da Ponte (MRD2026090132, R$ 61.884,12). Lanço tudo na competência agosto ou setembro?
+
+4) Créditos sem origem clara no Aurora: (a) 16/09 PIX R$ 7.350,00 do CNPJ 38.686.002/0001-80 "SEM IDENTIFICACAO"; (b) 23/09 "DEVOLUCAO PIX - MUNDO ABERTO" +R$ 12.400,00 (enviamos 48.714,59 em 09/09 e 88.746,05 em 24/09); (c) 30/09 transferência de R$ 300.000,00 para o Meridiano sem crédito correspondente no extrato do Meridiano. Vocês sabem a origem desses três, ou ficam como pendência?
+2 respostasmanuel.freitas  [20h49]
+[Financeiro] Resposta para Lucca Landeiro
+
+Não mudou nada no contrato da Rota este ano.
+Existe, sim. A Casa do Estudante tem tarifa zerada no checkout de setembro a dezembro, por acordo do comercial para segurar o cliente. Vale para MDR e antecipação. Remessa segue normal. Ninguém avisou a Orbe, então ela cobrou. O que foi cobrado eu devolvo ao lojista, junto com o comercial.
+A folha, o ISS, o INSS, o FGTS e os DARFs são de agosto e já estavam provisionados. O repasse da Ponte de 04/09 é o spread de agosto, que já estava como comissão a receber. Com isso, me diga como você lançaria.
+(a) Não sei de quem é o Pix de R$ 7.350. Não é receita até alguém identificar. (b) A devolução é um Pix de repasse que voltou, e ainda não sei o motivo. (c) A transferência saiu do Aurora em 30/09 e cai no Meridiano em 01/10. O que fazer com cada um é decisão sua.
+— Helena, financeiro da Tarvo
+Lucca Landeiro - Lucca Landeiro  [21h06]
+[financeiro] Lucca Landeiro: obrigado! Como eu lançaria:
+- Folha, ISS, INSS, FGTS, IRRF, PIS e COFINS de agosto: baixa do passivo provisionado (D Salários a pagar / ISS, INSS, FGTS, IRRF, PIS, COFINS a recolher × C Banco Aurora). Não é despesa de setembro.
+- Repasse Ponte 08/2026: D Banco Meridiano × C Comissões de intermediação a receber - câmbio.
+- PIX R$ 7.350 sem identificação: D Aurora × C Créditos não identificados, com pendência até identificar.
+- Devolução Mundo Aberto R$ 12.400: D Aurora × C Repasses a lojistas a pagar (o repasse volta a ser devido), com pendência para o motivo.
+- Transferência R$ 300 mil: D Transferências entre contas próprias × C Aurora em 30/09; em 01/10 fecha com D Meridiano.
+Se algo aqui estiver diferente do que vocês fazem, me avisa.
+
+
+
+
+Alex Chequer  [20h52]
+[financeiro] Fox AI: valor da divergência de remessa (Mundo Aberto)
+
+Proposta: divergência = (Spread % aplicado − contratado) × PTAX × valor em moeda estrangeira, valor cheio, porque é o que o lojista pagou a mais. Ex.: PC-0926-0011: (1,5007% − 1,20%) × 4,0315 × 2.438,46 = R$ 29,56. No mês, a Mundo Aberto soma R$ 1.418,85 em 23 operações.
+
+1. A divergência é o valor cheio ou só a nossa metade (50%)?
+2. Nos outros lojistas, o Spread % oscila ±0,002 p.p. em torno do contratado (ex.: 1,4984% a 1,5015% para quem tem 1,5%). Podemos tratar como arredondamento e não reportar divergência abaixo de 0,01 p.p.?1 respostamanuel.freitas  [20h58]
+[Financeiro] Resposta para Fox AI
+
+É o valor cheio. Quem pagou a mais foi a Mundo Aberto, e é o total que eu contesto com a Ponte. A nossa metade é só como a Ponte divide o spread com a gente.
+O critério de tolerância é de vocês. Se ele estiver escrito, com o motivo, eu sigo. O que eu preciso é não receber alarme de centavo, e também não deixar passar diferença de verdade.
+
+— Helena, financeiro da Tarvo
+
+
+
+
+Helio Henrique  [21h07]
+[financeiro] Fox AI: Arredondamento e cálculo das divergências
+Os valores da Orbe são compatíveis com truncamento em duas casas decimais. Ex.: TX88410932, bruto de R$ 608,88 e taxa de 2,69%, informa R$ 16,37; arredondando o produto, seria R$ 16,38.
+(a) Para calcular a comissão pela taxa contratada, devemos truncar ou arredondar? Qual regra vale para valores negativos e casos de meio centavo?
+(b) Aplicamos esse tratamento em cada operação antes de somar ou apenas no total por lojista?
+(c) A divergência de checkout deve ser valor_taxa informado pela Orbe − comissão contratada calculada ou valor_bruto × (taxa aplicada − contratada)? Os critérios podem produzir diferenças de centavos. (d) Nas remessas, calculamos e arredondamos os 50% por operação ou somente depois de somar o spread? Ex.: 50% de R$ 262,01 = R$ 131,005.1 respostamanuel.freitas  [21h13]
+[Financeiro] Resposta para Fox AI (arredondamento)
+Isso mesmo: a Orbe trunca os centavos. A gente não trunca.
+(a) Arredondamento comum para o centavo. Meio centavo vai para cima, e no negativo vale a mesma regra com o sinal: -0,005 vira -0,01.
+ (b) Linha por linha, e depois soma.
+ (c) Divergência é quando a taxa aplicada é diferente da contratada. Diferença de centavo por causa do truncamento da Orbe não é divergência. O valor da divergência eu quero como valor bruto × (taxa aplicada − contratada).
+ (d) Por operação, com o mesmo arredondamento. No seu exemplo, R$ 131,01.
+— Helena, financeiro da Tarvo
+
+
+
+
+Helio Henrique  [21h08]
+financeiro] Fox AI: Critério para classificar os extratos no plano de contas
+Complementando a pergunta sobre competência: nossa dúvida é qual conta usar em conta_codigo, considerando o que já foi registrado anteriormente.
+(a) O campo deve representar a contrapartida contábil da movimentação bancária, baixando obrigações e recebíveis já registrados, ou a natureza da receita/despesa?
+Exemplos:
+
+Folha 08/2026 paga em setembro: 2.1.04.001 — Salários a pagar ou 4.1.01 — Salários e ordenados?
+Comissão 08/2026 da Ponte recebida em setembro: 1.1.03.002 — Comissões de intermediação a receber - câmbio ou 3.1.03 — Receita de intermediação de câmbio?
+(b) Podemos considerar salários, tributos, fornecedores e comissões de meses anteriores já apropriados? Qual regra devemos seguir quando o extrato não permite saber se houve essa apropriação?
+1 respostamanuel.freitas  [21h14]
+[Financeiro] Resposta para Fox AI (plano de contas)
+(a) Quero a contrapartida do movimento no banco. Se o valor já estava registrado, o pagamento ou recebimento baixa a conta onde ele estava, e não vira receita ou despesa de novo. Como respondi ao Lucca, a folha, os tributos de agosto e o repasse da Ponte de 04/09 já estavam registrados.
+ (b) Além desses, nada estava provisionado: tarifas, aluguel, cloud, assinaturas e serviços entram direto na despesa do mês. Quando o extrato não deixar claro, declarem a premissa no HIPOTESES.md e sigam.
+— Helena, financeiro da Tarvo
+
+
+
+
+Theo Garcia - Theo Garcia  [21h16]
+[financeiro] Theo Garcia: uma pergunta sobre a nota de intermediação de setembro. Pela sua regra, a nossa participação é 50% do Spread R$ realizado. Na Mundo Aberto, o realizado inclui o excesso de 1,50% sobre o 1,20% contratado (R$ 1.418,85 em 23 operações), que a senhora vai contestar com a Ponte. A nossa metade desse excesso (cerca de R$ 709) entra na nota e na comissão de setembro, ou fica fora até a contestação? Hoje seguimos a sua regra: faturamos pelo realizado e deixamos a diferença como pendência sua, para ajustar se a Ponte devolver.1 respostamanuel.freitas  [21h45]
+[Financeiro] Resposta para Theo Garcia
+Entra. A nota de setembro sai pelo realizado, porque é o que a Ponte vai repassar para a gente agora. A contestação é um processo à parte. Se a Ponte devolver a diferença para a Mundo Aberto, a nossa metade sai no mês em que o ajuste acontecer.
+Deixar como pendência para mim é o caminho certo.
+— Helena, financeiro da Tarvo
+
+
+
+
+
+Lucca Landeiro - Lucca Landeiro  [21h56]
+[financeiro] Lucca Landeiro: como estou tratando a remessa, para você validar:
+- Spreads negativos (PC-0926-0210, -0326, -0491, -0545): fora da comissão e da nota. Em divergências, listo o valor cheio contra o contrato (R$ 3.565,98) e o impacto na nossa participação (R$ 917,03), que é o que a Ponte descontaria do repasse.
+- Duplicata PC-0926-0162: conto uma vez. O relatório da Ponte soma as duas linhas, então o total dela (R$ 78.073,59) gera um repasse R$ 410,94 maior que o devido.
+- Resultado: faturo R$ 39.543,45 para a Ponte. Pelo total dela, o TED de 06/10 viria uns R$ 506 menor (917,03 − 410,94). Deixo como pendência para conferir no extrato de outubro.
+Faz sentido?1 respostamanuel.freitas  [22h33]
+[Financeiro] Resposta para Lucca Landeiro
+Número eu não valido. Quem fecha é você, e a banca vai olhar o rastro.
+Sobre o raciocínio, duas coisas que eu sei:
+
+Não sei ainda como a Ponte vai pagar, porque a contestação nem foi aberta. Não conte que ela vai descontar nada do repasse.
+Conferir o TED quando ele cair é uma pendência boa. Fica comigo.
+— Helena, financeiro da Tarvo
+
+
+
+
+
+João Pedro Lucena [INSPER AI]  [22h04]
+[financeiro] [INSPER AI]: O e-mail da Ponte de 02/10 prevê cinco dias úteis para contestação, o que levaria a 09/10. As divergências de Mundo Aberto e os spreads negativos já foram contestados, ou existe uma extensão desse prazo?
+Se o prazo estiver vencido, isso altera o tratamento no fechamento ou devemos manter os valores como pendências de recuperação pelo financeiro?
+A operação duplicada também precisa ser contestada à Ponte ou basta considerá-la uma única vez no fechamento?1 respostamanuel.freitas  [22h34]
+[Financeiro] Resposta para Insper AI (contestação)
+Ainda não contestei nada. É para isso que eu preciso do fechamento de vocês. Considerem que estamos dentro do prazo: o fechamento é esta semana.
+Mantenham como pendência de contestação, com o valor e as operações, porque é isso que eu mando para a Ponte.
+A duplicada vocês contam uma vez no fechamento, e ela também entra na lista para a Ponte corrigir o relatório.
+— Helena, financeiro da Tarvo
+
+
+
+
+
+
+Gustavo [INSPER AI]  [22h09]
+[financeiro] [INSPER AI]: O Aurora apresenta saldo negativo a partir de 09/09, chegando a −R$ 2.289.532,94. Identificamos R$ 3.557.246,29 de créditos da Orbe no extrato.
+
+Qual é o fluxo de liquidação da Orbe para a Tarvo? Todos os repasses entram no Aurora ou existem outras contas, compensações ou pagamentos diretos aos lojistas?
+
+O relatório da Orbe soma R$ 7.264.348,20 em valor líquido, incluindo antecipações e reversões. Como esses movimentos devem ser considerados na conciliação, e quais prazos de liquidação explicam o que entra em setembro ou fica para outubro?
+1 respostamanuel.freitas  [22h34]
+[Financeiro] Resposta para Insper AI (Aurora e Orbe)
+A Orbe deposita tudo no Aurora. Ela não paga lojista direto. Débito e Pix caem no dia seguinte. Crédito e parcelado caem ao longo dos meses seguintes, conforme as parcelas. Por isso o que entra no banco em setembro não bate com o líquido do relatório de setembro.
+O saldo negativo é a conta garantida que a gente tem no Aurora para pagar os lojistas antes de a Orbe liquidar.
+Conciliar a Orbe contra o banco, parcela por parcela, não é o que eu preciso neste fechamento. Os créditos da Orbe vocês classificam, e o resto fica para quando tivermos a agenda de recebíveis.
+— Helena, financeiro da Tarvo
+
+
+
+
+
+as.pereira.leite  [22h20]
+[financeiro] Fox AI: Para fechar a comissão de checkout de setembro precisamos de 3 confirmações, assumimos hipóteses e pedimos validação destas.
+
+1) No relatório da Orbe só vemos a taxa cobrada do lojista (valor_taxa; as vendas somam ~R$ 214,6 mil). A comissão da Tarvo é essa taxa inteira ou ela menos um custo da Orbe? Assumimos que se trata da taxa inteira.
+
+2) Estornos: São 59 estornos (−R$ 7,1 mil de taxa), 9 deles de vendas de agosto (ex.: TX88444848). Os estornos reduzem a comissão de setembro, mesmo os de vendas de agosto? Assumimos que sim.
+
+3) Antecipações: A Orbe traz 38 antecipações (taxa de 2,10%, ~R$ 30,5 mil) e 6 reversões de antecipação (−R$ 6,1 mil). A taxa de antecipação entra na comissão do lojista e na nota fiscal, e a reversão abate? Assumimos que entra e abate.
+1 respostamanuel.freitas  [22h34]
+[Financeiro] Resposta para Fox AI (checkout)
+As três já estão respondidas aqui no canal:
+
+A comissão é a taxa inteira, sem desconto de custo da Orbe, mas pela taxa contratada, e não pelo valor_taxa. Está na resposta que dei para vocês mesmos no começo da noite.
+Sim, inclusive os de agosto. Respondi para a MN AI.
+Entra na mesma nota e a reversão abate. Respondi para a MN AI, sobre as notas.
+— Helena, financeiro da Tarvo
