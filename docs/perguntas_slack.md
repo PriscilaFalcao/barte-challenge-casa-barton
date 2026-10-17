@@ -257,3 +257,85 @@ A comissão é a taxa inteira, sem desconto de custo da Orbe, mas pela taxa cont
 Sim, inclusive os de agosto. Respondi para a MN AI.
 Entra na mesma nota e a reversão abate. Respondi para a MN AI, sobre as notas.
 — Helena, financeiro da Tarvo
+
+
+[Logística] Entrega: a solução precisa rodar
+Para deixar claro o que é a entrega: além do saida/, a banca precisa conseguir rodar o fechamento pela solução de vocês.
+Pode ser uma tela, um fluxo no n8n, um app no Lovable ou um único comando no terminal. O formato é com vocês. O mínimo:
+
+Recebe os arquivos do mês (upload ou pasta). Nada fixo no código para setembro.
+Roda tudo com um clique ou um comando.
+Mostra o resultado e gera os seis arquivos de saida/.
+O README explica como abrir e rodar, e onde configurar a chave de API.
+A banca vai rodar a solução com os arquivos do case e comparar com o saida/ entregue. Não avaliamos visual: um comando que funciona vale tanto quanto uma tela.
+— Organização
+
+
+[financeiro] MN AI: Os 4 spreads negativos (PC-0926-0210, -0326, -0491 e -0545) ficam fora da comissão e da nota e entram como contestação, como definiram. Eles também devem aparecer na lista de divergências de taxa (aplicado entre −1,55% e −1,65%, contra 1,4% a 1,5% contratados), ou só como pendência de contestação? Hoje tratamos só como pendência, porque o lojista não pagou a mais.
+
+[Financeiro] Resposta para MN AI (spread negativo)
+Para mim, divergência é quando o lojista pagou diferente do contrato. No spread negativo o lojista não pagou a mais. O prejuízo é nosso com a Ponte, então é pendência de contestação. Se quiserem listar também nas divergências, tudo bem, desde que fique claro que é outra natureza.
+— Helena, financeiro da Tarvo
+
+Perguntas para a Tarvo:
+
+1 - P3 — Tarifa zerada da Casa do Estudante × divergência (H03, até R$ 15.397,42) Durante a tarifa zerada da Casa do Estudante, a Orbe continuou cobrando a taxa normal (ex.: TX88410932, 01/09, 2,69%). Como o financeiro trata esse valor cobrado: da mesma forma que uma divergência de taxa comum ou de outro jeito?
+
+2 - P5 — O que é divergência na remessa (H08, R$ 1.834,05) Na remessa, o que caracteriza uma divergência de taxa para o financeiro? Como entram nisso as operações com spread negativo, como PC-0926-0210?
+
+3 - P2 — Venda cobrada acima do contrato e estornada (H02, R$ 107,53) Quando uma venda que a Orbe cobrou acima do contrato é estornada (ex.: Rota, TX88446419), como o financeiro considera essa venda e o estorno na hora de cobrar a diferença da Orbe?
+
+4 - P1 — Estorno de venda anterior à tarifa zerada (H01, R$ 5,50) TX88445133 é o estorno, em setembro, de uma venda da Casa do Estudante feita em 21/08, antes da tarifa zerada. Qual taxa vale para esse estorno?
+
+5 - P6 — PIX de R$ 18.240,00 no Meridiano (H10) O que é o PIX de R$ 18.240,00 recebido de "PONTE AEREA ESTUDANTIL L" em 17/09 (FITID MRD2026090425)? Não achamos nenhuma operação da Ponte Câmbio com esse valor. Os outros PIX desse lojista batem com as remessas dele.
+
+6 - P8 — Antecipação da Atlas Idiomas (H15) Existe regra ou limite de antecipação por lojista? A Atlas antecipou R$ 179.592,82 em 15/09 e, até essa data, tinha R$ 55.357,50 em vendas. Quem na Tarvo precisa ser avisado de um caso assim?
+
+7 - P4 — Orbe cobrando abaixo do contrato (H04, sem casos em setembro) O que acontece quando a Orbe cobra do lojista uma taxa menor que a contratada? Quem fica com a diferença?
+
+[Financeiro] Resposta para Mateus
+
+É diferente de uma divergência comum. A Orbe cobrou certo pela planilha, porque ninguém avisou da isenção. Não há o que cobrar da Orbe: é devolução ao lojista, pendência minha com o comercial. Deixem separado das divergências de contrato, com o valor.
+A divergência na remessa é quando o lojista paga um spread diferente do contratado. O spread negativo eu respondi para a MN AI agora há pouco.
+A venda e o estorno se anulam. Cobro da Orbe só o que sobrou de diferença líquida.
+Vale a taxa da data da venda original, como já está no canal. Em 21/08 a isenção ainda não valia.
+É a Ponte Aérea mandando dinheiro de uma remessa que ainda não foi feita. A operação sai em outubro. A Ponte Aérea Estudantil é lojista e não tem nada a ver com a Ponte Câmbio.
+Isso não deveria acontecer. A antecipação é sobre o que o lojista já vendeu, e a gente não tem trava para isso. Coloquem como alerta: quem precisa saber sou eu e o comercial, e ainda mais com a Atlas sem contrato assinado.
+Também é divergência e eu decido caso a caso. Não aconteceu em setembro, então não gastem tempo nisso.
+— Helena, financeiro da Tarvo
+
+
+[financeiro] [Desbravadores]:
+1. No Meridiano entrou em 17/09 um PIX de R$ 18.240,00 de "PONTE AEREA ESTUDANTIL L" (FITID MRD2026090425), sem remessa correspondente na Ponte. Os outros 63 PIX batem centavo a centavo com as remessas (valor + IOF). Ele também vem sem acento, diferente dos outros PIX da Ponte Aérea, então pode ser outra conta pagadora. Proposta: 2.1.02.001 (recursos para remessas) + pendência para você confirmar se é adiantamento de outubro ou devolução.
+2. Se aparecer na Ponte uma operação de um CNPJ que não está na planilha, propomos calcular a nossa metade do spread mesmo assim (a Ponte paga e a nota precisa bater com o repasse) e abrir pendência de cadastro para o comercial.
+
+[Financeiro] Resposta para Desbravadores
+
+Respondi agora para o Mateus: é dinheiro de uma remessa que sai em outubro.
+Não aconteceu em setembro. Se acontecer, o tratamento que vocês propuseram é razoável. Registrem como premissa.
+— Helena, financeiro da Tarvo
+
+
+[financeiro] MN AI: Quando o Comercial confirmar a taxa da Atlas, as 57 transações de setembro (R$ 262.138,61 brutos) são faturadas na nota de outubro com a taxa nova, ou a taxa vale só para frente e setembro fica sem faturar? Precisamos saber se o fechamento de outubro tem que puxar linhas do mês anterior.
+
+Quando o comercial confirmar, a taxa vale desde o começo (10/09) e eu faturo setembro junto com outubro. Então sim, outubro precisa puxar as linhas da Atlas de setembro que ficaram pendentes.
+— Helena, financeiro da Tarvo
+
+
+[Desbravadores]:
+1. As 4 operações de spread negativo (PC-0926-0210, -0326, -0491, -0545): além da pendência de contestação, elas entram na lista de divergências de taxa (contratado 1,5% e 1,4%, aplicado ≈ -1,55%)? Ou divergência é só quando o lojista paga a mais?
+2. A devolução do PIX de R$ 12.400 da Mundo Aberto: lançamos em 2.1.01.001 (o repasse volta a ser devido). A 2.1.01.002 (devoluções e créditos a lojistas) seria mais adequada?
+3. Folha, ISS, INSS, FGTS e DARFs pagos no mês seguinte estão sempre provisionados, ou só os de agosto?
+
+[Financeiro] Resposta para Desbravadores
+
+Já está no canal, na resposta para a MN AI das 8h43.
+As duas contas fazem sentido. Escolham uma, mantenham o mesmo critério e escrevam o motivo.
+Sempre. Todo mês a folha e os impostos do mês ficam provisionados no fechamento, e o pagamento no mês seguinte baixa a provisão.
+— Helena, financeiro da Tarvo
+
+
+[financeiro] MN AI: Quando uma decisão sua vale para os próximos meses (ex.: a taxa da Atlas quando o Comercial confirmar, ou como tratar recurso de remessa sem operação), quem pode aprovar que ela vire regra fixa do fechamento: só você, ou o Comercial também quando é taxa? E nas suas férias, quem fecha o mês? Vamos registrar o nome de quem aprovou cada regra e quando.
+[Financeiro] Resposta para MN AI (quem aprova)
+Taxa e condição comercial, quem aprova é o comercial, e eu registro. Regra de como fechar, aprovo eu. Nas minhas férias, hoje ninguém fecha. É exatamente por isso que vocês estão aqui. Registrar quem aprovou e quando é ótimo.
+— Helena, financeiro da Tarvo
