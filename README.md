@@ -18,7 +18,9 @@ python -m tarvo web
 
 Abra [http://127.0.0.1:8000](http://127.0.0.1:8000). O servidor escuta apenas no computador local. As execuções da interface ficam em `data/web/`.
 
-Esta primeira etapa integra ao motor os arquivos da Orbe (`.csv`), taxas contratadas (`.xlsx`) e Ponte Câmbio (`.eml`). Plano de contas, extratos bancários, fila de decisões e configurações ainda não fazem parte do fluxo web.
+A interface aceita os seis arquivos originais do fechamento: Orbe (`.csv`), taxas contratadas (`.xlsx`), Ponte Câmbio (`.eml`), plano de contas (`.csv`), extrato Aurora (`.csv`) e extrato Meridiano (`.ofx`). É possível enviar os arquivos individualmente ou em lote; os CSVs do lote são identificados pelo cabeçalho. A pré-validação executa o pipeline sem IA; o fechamento usa estado B8 isolado por fechamento, acompanha etapas em tempo real e atualiza fila, decisões e checkpoints. A fila aceita observações, classificação de conta por caso ou regra e vínculo de EC a lojista. O gate final impede o fechamento enquanto houver pendências bloqueantes e registra quem fechou, a justificativa e hashes SHA-256 das saídas.
+
+Para habilitar os agentes, copie `.env.example` para `.env` na raiz do repositório e configure a credencial localmente. Sem credencial, o fluxo funciona em modo sem IA e mantém exceções na fila humana. Não é necessário criar `.env` para iniciar a interface.
 
 ## Executar pelo terminal
 

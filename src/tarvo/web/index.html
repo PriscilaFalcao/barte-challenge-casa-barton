@@ -20,7 +20,7 @@
           <a class="nav-link active" href="#fechamentos" aria-current="page">
             <span class="nav-icon" aria-hidden="true">▦</span> Fechamentos
           </a>
-          <a class="nav-link" href="#validacoes" data-notice="A fila de validações será integrada na próxima etapa.">
+          <a class="nav-link" href="#validation-queue" data-section="validation-queue">
             <span class="nav-icon" aria-hidden="true">✓</span> Validações
           </a>
           <a class="nav-link" href="#configuracoes" data-notice="As configurações versionadas ainda não estão integradas.">
@@ -87,6 +87,12 @@
                 <p>Os arquivos são conferidos pelo motor antes de qualquer saída ser gerada.</p>
               </div>
             </div>
+            <label class="batch-dropzone" id="batch-dropzone" for="batch-files" tabindex="0">
+              <input id="batch-files" type="file" accept=".csv,.xlsx,.eml,.ofx" multiple>
+              <span class="batch-upload-icon" aria-hidden="true">↑</span>
+              <span><strong>Solte os 6 arquivos aqui</strong> ou <span class="upload-link">selecione no computador</span></span>
+              <span class="batch-help">Identificamos o tipo pelo conteúdo e pelo formato esperado.</span>
+            </label>
             <div class="upload-grid">
               <label class="file-card" data-slot="orbe">
                 <input type="file" accept=".csv">
@@ -109,13 +115,30 @@
                 <span class="file-detail">Ponte Câmbio · formato .eml</span>
                 <span class="file-name">Escolher arquivo</span>
               </label>
-            </div>
-            <div class="integration-note">
-              <span class="info-icon" aria-hidden="true">i</span>
-              <p><strong>Integração inicial:</strong> o motor atual processa Orbe, taxas e Ponte. Plano de contas e extratos bancários ainda não estão conectados ao pipeline.</p>
+              <label class="file-card" data-slot="plano">
+                <input type="file" accept=".csv">
+                <span class="file-icon" aria-hidden="true">CSV</span>
+                <span class="file-title">Plano de contas</span>
+                <span class="file-detail">ERP Fênix · formato .csv</span>
+                <span class="file-name">Escolher arquivo</span>
+              </label>
+              <label class="file-card" data-slot="aurora">
+                <input type="file" accept=".csv">
+                <span class="file-icon" aria-hidden="true">CSV</span>
+                <span class="file-title">Extrato bancário</span>
+                <span class="file-detail">Banco Aurora · formato .csv</span>
+                <span class="file-name">Escolher arquivo</span>
+              </label>
+              <label class="file-card" data-slot="meridiano">
+                <input type="file" accept=".ofx">
+                <span class="file-icon" aria-hidden="true">OFX</span>
+                <span class="file-title">Extrato de remessas</span>
+                <span class="file-detail">Banco Meridiano · formato .ofx</span>
+                <span class="file-name">Escolher arquivo</span>
+              </label>
             </div>
             <div class="actions-row">
-              <p class="helper-text" id="upload-status">Envie os 3 arquivos para continuar.</p>
+              <p class="helper-text" id="upload-status">Envie os 6 arquivos para continuar.</p>
               <button class="button button-primary" id="validate-files" type="button" disabled>Conferir arquivos <span aria-hidden="true">→</span></button>
             </div>
           </section>
@@ -136,6 +159,24 @@
             </div>
           </section>
 
+          <section id="execution-panel" class="card execution-panel" aria-live="polite" hidden>
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">ACOMPANHAMENTO DO MOTOR</p>
+                <h2 id="execution-title">Execução em andamento</h2>
+                <p id="execution-status">Preparando etapas e checkpoints…</p>
+              </div>
+              <span class="badge" id="execution-badge">Executando</span>
+            </div>
+            <ol class="event-list" id="execution-events" aria-label="Etapas executadas"></ol>
+            <section class="agent-activity" aria-labelledby="agents-title">
+              <h3 id="agents-title">Atividade dos agentes</h3>
+              <div id="agent-calls" class="agent-call-list">
+                <p class="helper-text">As chamadas serão exibidas conforme o motor as registrar.</p>
+              </div>
+            </section>
+          </section>
+
           <section id="results-panel" hidden>
             <div class="results-heading">
               <div>
@@ -145,6 +186,32 @@
               <a class="button button-secondary" id="download-all" href="#" download>Baixar todas as saídas <span aria-hidden="true">↓</span></a>
             </div>
             <div class="summary-grid" id="results-summary"></div>
+            <section id="validation-queue" class="card queue-panel" hidden>
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">REVISÃO HUMANA</p>
+                  <h2>Fila de validações</h2>
+                  <p>Registre uma decisão com responsável e justificativa. O motor reexecuta as etapas afetadas.</p>
+                </div>
+                <span class="badge" id="queue-count">0 pendências</span>
+              </div>
+              <div id="queue-items" class="queue-items"></div>
+              <p id="queue-empty" class="helper-text" hidden>Nenhuma pendência aberta para esta competência.</p>
+            </section>
+            <section id="close-panel" class="card close-panel" hidden>
+              <div>
+                <p class="eyebrow">GATE DE FECHAMENTO</p>
+                <h3 id="close-title">Revisão final</h3>
+                <p id="close-message" class="helper-text">O fechamento só pode ser registrado sem pendências bloqueantes.</p>
+              </div>
+              <form id="close-form" class="close-form">
+                <label class="field-label" for="close-author">Responsável pelo fechamento</label>
+                <input id="close-author" class="text-input" required value="Financeiro">
+                <label class="field-label" for="close-reason">Justificativa</label>
+                <input id="close-reason" class="text-input" required value="Revisão final concluída">
+                <button class="button button-primary" id="close-confirm" type="submit">Fechar competência</button>
+              </form>
+            </section>
             <section class="card outputs-card">
               <div class="outputs-header">
                 <div>
@@ -161,8 +228,11 @@
                 <button class="tab active" type="button" role="tab" aria-selected="true" data-table="comissoes">Comissões</button>
                 <button class="tab" type="button" role="tab" aria-selected="false" data-table="divergencias">Divergências</button>
                 <button class="tab" type="button" role="tab" aria-selected="false" data-table="notas">Notas</button>
+                <button class="tab" type="button" role="tab" aria-selected="false" data-table="lancamentos">Extratos</button>
                 <button class="tab" type="button" role="tab" aria-selected="false" data-table="pendencias">Pendências</button>
+                <button class="tab" type="button" role="tab" aria-selected="false" data-table="rastro">Rastro</button>
               </div>
+              <div class="download-links" id="download-links" aria-label="Baixar arquivo de saída"></div>
               <div class="table-wrap" tabindex="0" aria-label="Tabela de resultados com rolagem horizontal">
                 <table>
                   <thead id="table-head"></thead>

@@ -2,16 +2,33 @@
 from __future__ import annotations
 
 import csv
+import hashlib
+import io
 import json
 import re
+import threading
+import time
 import uuid
 import zipfile
 from decimal import Decimal
+from datetime import date, datetime
+from email import policy
+from email.parser import BytesParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
+import openpyxl
 from .ingest.erros import LayoutError
+from .ingest.aurora import ARQUIVO as ARQUIVO_AURORA
+from .ingest.meridiano import ARQUIVO as ARQUIVO_MERIDIANO
+from .ingest.orbe import ARQUIVO as ARQUIVO_ORBE
+from .ingest.ponte import ARQUIVO as ARQUIVO_PONTE
+from .ingest.taxas import ARQUIVO as ARQUIVO_TAXAS
+from .ingest.texto import norm_texto
+from .core.ids import norm_cnpj
+from .estado.db import Estado, RESOLVIDA
+from .ingest.plano_contas import ler_plano_contas
 from .output.validators import ValidationError
 from .pipeline import fechar
 
@@ -24,20 +41,123 @@ _SLOTS = {
     "orbe": (".csv", "01_upload.csv"),
     "taxas": (".xlsx", "02_upload.xlsx"),
     "ponte": (".eml", "03_upload.eml"),
+    "plano": (".csv", "04_upload.csv"),
+    "aurora": (".csv", "05a_upload.csv"),
+    "meridiano": (".ofx", "05b_upload.ofx"),
 }
 _TABLES = {
     "comissoes": "comissoes_por_lojista.csv",
     "divergencias": "divergencias_taxa.csv",
     "notas": "notas_a_emitir.csv",
+    "lancamentos": "lancamentos_classificados.csv",
     "pendencias": "pendencias.csv",
     "rastro": "rastro.csv",
 }
-_DOWNLOADS = (*_TABLES.values(), "execucao.log")
+_DOWNLOADS = (*_TABLES.values(), "resumo.md", "execucao.log")
+_RUNNING: set[str] = set()
+_RUNNING_LOCK = threading.Lock()
 
 
 def _read_csv(path: Path) -> list[dict[str, str]]:
     with path.open(encoding="utf-8-sig", newline="") as source:
         return list(csv.DictReader(source, delimiter=";"))
+
+
+def _cell_value(value: object) -> str:
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    return "" if value is None else str(value)
+
+
+def _original_row(closure_dir: Path, source_name: str, reference: str) -> dict[str, str] | None:
+    source_slots = {
+        ARQUIVO_ORBE: "orbe",
+        ARQUIVO_TAXAS: "taxas",
+        ARQUIVO_PONTE: "ponte",
+        ARQUIVO_AURORA: "aurora",
+        ARQUIVO_MERIDIANO: "meridiano",
+    }
+    slot = source_slots.get(source_name)
+    if slot is None:
+        return None
+    source_path = closure_dir / "dados" / _SLOTS[slot][1]
+
+    if slot == "orbe":
+        for row in _read_csv(source_path):
+            if row.get("id_transacao") == reference:
+                return row
+        return None
+    if slot == "aurora":
+        match = re.fullmatch(r"L(\d+)", reference)
+        if match is None:
+            return None
+        with source_path.open(encoding="utf-8-sig", newline="") as source:
+            rows = list(csv.reader(source, delimiter=";"))
+        line_number = int(match.group(1))
+        if line_number < 1 or line_number > len(rows):
+            return None
+        header = next(
+            (row for row in rows if row and norm_texto(row[0]) == "data"
+             and any(norm_texto(value) == "lancamento" for value in row)),
+            None,
+        )
+        if header is None:
+            return None
+        raw_row = rows[line_number - 1]
+        return {"linha_fisica": reference, **{
+            name: raw_row[index] if index < len(raw_row) else ""
+            for index, name in enumerate(header)
+        }}
+    if slot == "meridiano":
+        text = source_path.read_bytes().decode("cp1252")
+        for block in re.split(r"<STMTTRN>", text, flags=re.I)[1:]:
+            transaction = re.split(r"</STMTTRN>", block, maxsplit=1, flags=re.I)[0]
+            fields = re.findall(r"<([A-Z0-9.]+)>([^<\r\n]*)", transaction, flags=re.I)
+            row = {name.upper(): value.strip() for name, value in fields}
+            if row.get("FITID") == reference:
+                return {"registro_ofx": transaction.strip(), **row}
+        return None
+    if slot == "taxas":
+        match = re.fullmatch(r"Taxas!L(\d+)", reference)
+        if match is None:
+            return None
+        workbook = openpyxl.load_workbook(source_path, data_only=True, read_only=True)
+        worksheet = next((ws for ws in workbook.worksheets if norm_texto(ws.title) == "taxas vigentes"), None)
+        if worksheet is None:
+            worksheet = next((ws for ws in workbook.worksheets if "antigo" not in norm_texto(ws.title)), None)
+        if worksheet is None:
+            return None
+        row_number = int(match.group(1))
+        values = next(worksheet.iter_rows(min_row=row_number, max_row=row_number, values_only=True), ())
+        return {"planilha": worksheet.title, "linha": str(row_number), **{
+            openpyxl.utils.get_column_letter(index): _cell_value(value)
+            for index, value in enumerate(values, start=1)
+        }}
+    message = BytesParser(policy=policy.default).parsebytes(source_path.read_bytes())
+    attachments = [part for part in message.walk() if (part.get_filename() or "").lower().endswith(".xlsx")]
+    if len(attachments) != 1:
+        return None
+    workbook = openpyxl.load_workbook(io.BytesIO(attachments[0].get_payload(decode=True)), data_only=True, read_only=True)
+    worksheet = next((ws for ws in workbook.worksheets if norm_texto(ws.title) == "operacoes"), None)
+    if worksheet is None:
+        return None
+    rows = worksheet.iter_rows(values_only=True)
+    header = None
+    header_row = 0
+    for index, row in enumerate(rows, start=1):
+        if row and norm_texto(row[0]) == "no operacao":
+            header = row
+            header_row = index
+            break
+    if header is None:
+        return None
+    for index, row in enumerate(worksheet.iter_rows(min_row=header_row + 1, values_only=True), start=header_row + 1):
+        if row and str(row[0]).strip() == reference:
+            return {"linha_planilha": str(index), **{
+                _cell_value(name): _cell_value(row[column]) if column < len(row) else ""
+                for column, name in enumerate(header) if name is not None
+            }}
+    return None
 
 
 def _format_brl(value: Decimal) -> str:
@@ -48,6 +168,7 @@ def _summary(output_dir: Path) -> dict:
     commissions = _read_csv(output_dir / _TABLES["comissoes"])
     divergences = _read_csv(output_dir / _TABLES["divergencias"])
     notes = _read_csv(output_dir / _TABLES["notas"])
+    bank_entries = _read_csv(output_dir / _TABLES["lancamentos"])
     pending = _read_csv(output_dir / _TABLES["pendencias"])
     trace = _read_csv(output_dir / _TABLES["rastro"])
 
@@ -69,6 +190,7 @@ def _summary(output_dir: Path) -> dict:
             (commissions, "comissao_brl"),
             (divergences, "diferenca_brl"),
             (notes, "valor_brl"),
+            (bank_entries, "valor"),
             (pending, "valor_brl"),
         )
         for row in rows
@@ -89,6 +211,7 @@ def _summary(output_dir: Path) -> dict:
         "notes_total": _format_brl(
             sum((Decimal(row["valor_brl"]) for row in notes), Decimal("0"))
         ),
+        "bank_entries_count": len(bank_entries),
         "pending_count": len(pending),
         "pending_by_decider": by_decider,
         "reconciles": reconciles,
@@ -109,8 +232,10 @@ def _load_state(closure_id: str) -> tuple[Path, dict]:
 
 
 def _save_state(closure_dir: Path, state: dict) -> None:
-    with (closure_dir / "state.json").open("w", encoding="utf-8") as target:
+    temporary_path = closure_dir / "state.json.tmp"
+    with temporary_path.open("w", encoding="utf-8") as target:
         json.dump(state, target, ensure_ascii=False, indent=2)
+    temporary_path.replace(closure_dir / "state.json")
 
 
 def _response_state(closure_dir: Path, state: dict) -> dict:
@@ -120,11 +245,17 @@ def _response_state(closure_dir: Path, state: dict) -> dict:
         "status": state["status"],
         "files": state["files"],
         "validation_error": state.get("validation_error"),
+        "validated": bool(state.get("validated")),
+        "execution_id": state.get("execution_id"),
+        "closure_record": state.get("closure_record"),
     }
-    result_dir = closure_dir / ("saida" if state["status"] == "completed" else "validacao")
-    if state["status"] in {"validated", "completed"}:
+    result_dir = closure_dir / ("saida" if state["status"] in {"completed", "closed"} else "validacao")
+    if state.get("validated") or state["status"] in {"validated", "completed", "closed"}:
         response["summary"] = _summary(result_dir)
         response["outputs"] = list(_TABLES)
+    if state.get("error"):
+        response["error"] = state["error"]
+    response["closed"] = state["status"] == "closed"
     return response
 
 
@@ -145,13 +276,28 @@ class _Handler(BaseHTTPRequestHandler):
         if match:
             self._get_closure(match.group(1))
             return
-        match = re.fullmatch(r"/api/closures/([0-9a-f-]{36})/tables/(comissoes|divergencias|notas|pendencias|rastro)", request.path)
+        match = re.fullmatch(r"/api/closures/([0-9a-f-]{36})/(queue|accounts|activity)", request.path)
+        if match:
+            {"queue": self._get_queue, "accounts": self._get_accounts, "activity": self._get_activity}[
+                match.group(2)
+            ](match.group(1))
+            return
+        match = re.fullmatch(r"/api/closures/([0-9a-f-]{36})/events", request.path)
+        if match:
+            self._stream_events(match.group(1))
+            return
+        table_names = "|".join(_TABLES)
+        match = re.fullmatch(rf"/api/closures/([0-9a-f-]{{36}})/tables/({table_names})", request.path)
         if match:
             self._get_table(match.group(1), match.group(2))
             return
         match = re.fullmatch(r"/api/closures/([0-9a-f-]{36})/trace", request.path)
         if match:
             self._get_trace(match.group(1), parse_qs(request.query))
+            return
+        match = re.fullmatch(r"/api/closures/([0-9a-f-]{36})/source", request.path)
+        if match:
+            self._get_source(match.group(1), parse_qs(request.query))
             return
         match = re.fullmatch(r"/api/closures/([0-9a-f-]{36})/download/([^/]+)", request.path)
         if match:
@@ -164,7 +310,8 @@ class _Handler(BaseHTTPRequestHandler):
         if request.path == "/api/closures":
             self._create_closure()
             return
-        match = re.fullmatch(r"/api/closures/([0-9a-f-]{36})/files/(orbe|taxas|ponte)", request.path)
+        slots = "|".join(_SLOTS)
+        match = re.fullmatch(rf"/api/closures/([0-9a-f-]{{36}})/files/({slots})", request.path)
         if match:
             self._upload_file(match.group(1), match.group(2))
             return
@@ -175,6 +322,14 @@ class _Handler(BaseHTTPRequestHandler):
         match = re.fullmatch(r"/api/closures/([0-9a-f-]{36})/run", request.path)
         if match:
             self._run(match.group(1))
+            return
+        match = re.fullmatch(r"/api/closures/([0-9a-f-]{36})/decisions", request.path)
+        if match:
+            self._decide(match.group(1))
+            return
+        match = re.fullmatch(r"/api/closures/([0-9a-f-]{36})/close", request.path)
+        if match:
+            self._close_closure(match.group(1))
             return
         self._json({"error": "Endereço não encontrado."}, 404)
 
@@ -282,13 +437,23 @@ class _Handler(BaseHTTPRequestHandler):
         except FileNotFoundError as exc:
             self._json({"error": str(exc)}, 404)
             return
+        if state["status"] != "uploading":
+            self._json({"error": "A pré-validação só pode ser feita durante o envio dos arquivos."}, 409)
+            return
         missing = [slot for slot in _SLOTS if slot not in state["files"]]
         if missing:
-            labels = {"orbe": "relatório Orbe", "taxas": "planilha de taxas", "ponte": "e-mail da Ponte"}
+            labels = {
+                "orbe": "relatório Orbe",
+                "taxas": "planilha de taxas",
+                "ponte": "e-mail da Ponte",
+                "plano": "plano de contas",
+                "aurora": "extrato Aurora",
+                "meridiano": "extrato Meridiano",
+            }
             self._json({"error": "Envie os arquivos obrigatórios: " + ", ".join(labels[slot] for slot in missing) + "."}, 409)
             return
         try:
-            fechar(state["month"], closure_dir / "dados", closure_dir / "validacao")
+            fechar(state["month"], closure_dir / "dados", closure_dir / "validacao", cliente=None)
         except (LayoutError, ValidationError, OSError, ValueError) as exc:
             state["validation_error"] = str(exc)
             state["status"] = "uploading"
@@ -296,6 +461,7 @@ class _Handler(BaseHTTPRequestHandler):
             self._json({"error": f"Não foi possível validar os arquivos: {exc}"}, 422)
             return
         state["status"] = "validated"
+        state["validated"] = True
         state.pop("validation_error", None)
         _save_state(closure_dir, state)
         self._json(_response_state(closure_dir, state))
@@ -306,15 +472,326 @@ class _Handler(BaseHTTPRequestHandler):
         except FileNotFoundError as exc:
             self._json({"error": str(exc)}, 404)
             return
-        if state["status"] != "validated":
+        if state["status"] not in {"validated", "completed", "failed"} or not state.get("validated"):
             self._json({"error": "Pré-valide os arquivos antes de executar o fechamento."}, 409)
             return
-        try:
-            fechar(state["month"], closure_dir / "dados", closure_dir / "saida")
-        except (LayoutError, ValidationError, OSError, ValueError) as exc:
-            self._json({"error": f"Não foi possível concluir o fechamento: {exc}"}, 422)
+        if not self._start_execution(closure_dir, state):
+            self._json({"error": "Já existe uma execução em andamento para este fechamento."}, 409)
             return
-        state["status"] = "completed"
+        self._json(_response_state(closure_dir, state), 202)
+
+    def _start_execution(self, closure_dir: Path, state: dict) -> bool:
+        closure_id = state["id"]
+        if state["status"] == "closed":
+            return False
+        with _RUNNING_LOCK:
+            if closure_id in _RUNNING:
+                return False
+            _RUNNING.add(closure_id)
+        try:
+            state["status"] = "running"
+            state.pop("error", None)
+            state["previous_execution_id"] = state.get("execution_id", 0)
+            state.pop("execution_id", None)
+            state["started_at"] = datetime.now().isoformat(timespec="seconds")
+            _save_state(closure_dir, state)
+            worker = threading.Thread(
+                target=self._run_worker,
+                args=(closure_dir, state),
+                name=f"tarvo-web-{closure_id[:8]}",
+                daemon=True,
+            )
+            worker.start()
+        except Exception:
+            with _RUNNING_LOCK:
+                _RUNNING.discard(closure_id)
+            raise
+        return True
+
+    @staticmethod
+    def _run_worker(closure_dir: Path, state: dict) -> None:
+        closure_id = state["id"]
+        try:
+            result = fechar(
+                state["month"],
+                closure_dir / "dados",
+                closure_dir / "saida",
+                estado=closure_dir / "estado",
+            )
+            state["status"] = "completed"
+            state["execution_id"] = result.execucao_id
+            state.pop("error", None)
+        except Exception as exc:
+            state["status"] = "failed"
+            state["error"] = f"Não foi possível concluir o fechamento: {exc}"
+            print(f"Falha na execução web {closure_id}: {type(exc).__name__}: {exc}")
+        finally:
+            try:
+                _save_state(closure_dir, state)
+            except OSError as exc:
+                print(f"Não foi possível persistir o estado do fechamento {closure_id}: {exc}")
+            finally:
+                with _RUNNING_LOCK:
+                    _RUNNING.discard(closure_id)
+
+    def _get_queue(self, closure_id: str) -> None:
+        try:
+            _, state = _load_state(closure_id)
+        except FileNotFoundError as exc:
+            self._json({"error": str(exc)}, 404)
+            return
+        if not (state.get("validated") or state["status"] in {"completed", "closed"}):
+            self._json({"error": "A fila fica disponível depois da pré-validação."}, 409)
+            return
+        db = Estado(_DATA_ROOT / "fechamentos" / state["id"] / "estado")
+        try:
+            items = db.fila(state["month"])
+        finally:
+            db.fechar()
+        self._json({
+            "items": items,
+            "open_count": len(items),
+            "blocking_count": sum(item["bloqueante"] == "S" for item in items),
+            "closed": state["status"] == "closed",
+        })
+
+    def _get_accounts(self, closure_id: str) -> None:
+        try:
+            closure_dir, state = _load_state(closure_id)
+        except FileNotFoundError as exc:
+            self._json({"error": str(exc)}, 404)
+            return
+        if "plano" not in state["files"]:
+            self._json({"error": "Envie o plano de contas antes de consultar as contas."}, 409)
+            return
+        try:
+            accounts = ler_plano_contas(closure_dir / "dados" / _SLOTS["plano"][1])
+        except (LayoutError, OSError, UnicodeError) as exc:
+            self._json({"error": f"Não foi possível ler o plano de contas: {exc}"}, 422)
+            return
+        self._json({"accounts": [
+            {"codigo": account.codigo, "descricao": account.descricao, "analitica": account.analitica}
+            for account in accounts.values() if account.analitica
+        ]})
+
+    def _get_activity(self, closure_id: str) -> None:
+        try:
+            closure_dir, state = _load_state(closure_id)
+        except FileNotFoundError as exc:
+            self._json({"error": str(exc)}, 404)
+            return
+        db = Estado(closure_dir / "estado")
+        try:
+            execution = db.ultima_execucao(state["month"])
+            activity = {
+                "status": state["status"],
+                "error": state.get("error"),
+                "execution": execution,
+                "events": db.eventos(execution["id"]) if execution else [],
+                "agent_calls": db.chamadas(execution["id"]) if execution else [],
+                "closed": state["status"] == "closed",
+            }
+        finally:
+            db.fechar()
+        self._json(activity)
+
+    def _stream_events(self, closure_id: str) -> None:
+        try:
+            closure_dir, state = _load_state(closure_id)
+        except FileNotFoundError as exc:
+            self._json({"error": str(exc)}, 404)
+            return
+        if state["status"] not in {"running", "completed", "failed", "closed"}:
+            self._json({"error": "Não há execução para acompanhar."}, 409)
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "close")
+        self.send_header("X-Accel-Buffering", "no")
+        self.end_headers()
+        self.close_connection = True
+        last_event_id = 0
+        heartbeat_at = time.monotonic()
+        db = Estado(closure_dir / "estado")
+        try:
+            while True:
+                _, current = _load_state(closure_id)
+                execution = db.ultima_execucao(current["month"])
+                if execution and execution["id"] <= current.get("previous_execution_id", 0):
+                    execution = None
+                events = db.eventos(execution["id"]) if execution else []
+                execution_status = execution["status"] if execution else None
+                if execution:
+                    for event in events:
+                        if event["id"] <= last_event_id:
+                            continue
+                        payload = json.dumps(event, ensure_ascii=False)
+                        self.wfile.write(f"id: {event['id']}\nevent: progress\ndata: {payload}\n\n".encode("utf-8"))
+                        self.wfile.flush()
+                        last_event_id = event["id"]
+                if current["status"] in {"completed", "failed", "closed"} and execution_status != "EXECUTANDO":
+                    payload = json.dumps(_response_state(closure_dir, current), ensure_ascii=False)
+                    self.wfile.write(f"event: complete\ndata: {payload}\n\n".encode("utf-8"))
+                    self.wfile.flush()
+                    return
+                if time.monotonic() - heartbeat_at >= 10:
+                    self.wfile.write(b": keep-alive\n\n")
+                    self.wfile.flush()
+                    heartbeat_at = time.monotonic()
+                time.sleep(0.5)
+        except (BrokenPipeError, ConnectionResetError):
+            return
+        finally:
+            db.fechar()
+
+    def _decide(self, closure_id: str) -> None:
+        try:
+            closure_dir, state = _load_state(closure_id)
+            payload = self._read_json()
+        except FileNotFoundError as exc:
+            self._json({"error": str(exc)}, 404)
+            return
+        except ValueError as exc:
+            self._json({"error": str(exc)}, 400)
+            return
+        if state["status"] not in {"completed", "failed"} or not state.get("validated"):
+            self._json({"error": "As decisões ficam disponíveis após a execução do fechamento."}, 409)
+            return
+        item_id = payload.get("id_saida")
+        decision_type = payload.get("tipo_decisao")
+        scope = payload.get("escopo", "caso")
+        author = payload.get("autor")
+        reason = payload.get("motivo")
+        if not all(isinstance(value, str) and value.strip() for value in (item_id, decision_type, scope, author, reason)):
+            self._json({"error": "Informe a pendência, a decisão, o autor e o motivo."}, 400)
+            return
+
+        db = Estado(closure_dir / "estado")
+        try:
+            item = db.item_fila(state["month"], item_id)
+            if item is None or item["estado"] == RESOLVIDA:
+                self._json({"error": "Esta pendência não está mais aberta na fila."}, 404)
+                return
+            if decision_type == "CONTA":
+                account_code = payload.get("conta")
+                if not isinstance(account_code, str) or not account_code.strip():
+                    self._json({"error": "Selecione uma conta analítica."}, 400)
+                    return
+                accounts = ler_plano_contas(closure_dir / "dados" / _SLOTS["plano"][1])
+                account = accounts.get(account_code)
+                if account is None or not account.analitica:
+                    self._json({"error": "A conta selecionada não existe ou não aceita lançamentos."}, 422)
+                    return
+                if scope == "caso" and not item_id.startswith("PEN-CLASSIFICACAO") \
+                        and not re.fullmatch(r"(L\d+|MRD\w+)", item["ref_origem"]):
+                    self._json({"error": "A decisão de conta por caso só vale para lançamentos bancários."}, 422)
+                    return
+                if scope not in {"caso", "regra"}:
+                    self._json({"error": "O escopo precisa ser caso ou regra."}, 400)
+                    return
+                decision_payload = {"ref_origem": item["ref_origem"], "conta": account_code}
+                if scope == "regra":
+                    pattern = payload.get("padrao")
+                    bank = payload.get("banco")
+                    if not isinstance(pattern, str) or not pattern or bank not in {"AURORA", "MERIDIANO"}:
+                        self._json({"error": "Uma regra exige regex e banco Aurora ou Meridiano."}, 400)
+                        return
+                    try:
+                        re.compile(pattern)
+                    except re.error as exc:
+                        self._json({"error": f"A expressão da regra não é válida: {exc}"}, 400)
+                        return
+                decision_id = db.registrar_decisao(
+                    state["month"], item_id, "CONTA", decision_payload, scope, author, reason
+                )
+                if scope == "regra":
+                    db.promover_regra(
+                        "PADRAO_CONTA",
+                        {"id": f"HUM-{decision_id}", "banco": bank, "padrao": pattern,
+                         "conta": account_code, "status": f"decisão de {author}: {reason}"},
+                        author, reason, decision_id,
+                    )
+            elif decision_type == "EC_LOJISTA":
+                ec = payload.get("ec")
+                cnpj = payload.get("cnpj")
+                if not isinstance(ec, str) or not ec.strip() or not isinstance(cnpj, str) or not cnpj.strip():
+                    self._json({"error": "Informe o EC e o CNPJ do lojista."}, 400)
+                    return
+                try:
+                    normalized_cnpj = norm_cnpj(cnpj)
+                except ValueError as exc:
+                    self._json({"error": str(exc)}, 422)
+                    return
+                decision_id = db.registrar_decisao(
+                    state["month"], item_id, "EC_LOJISTA",
+                    {"ec": ec.strip(), "cnpj": normalized_cnpj}, "regra", author, reason,
+                )
+                db.promover_regra(
+                    "EC_LOJISTA", {"ec": ec.strip(), "cnpj": normalized_cnpj}, author, reason, decision_id
+                )
+            elif decision_type == "NOTA":
+                note = payload.get("texto")
+                if not isinstance(note, str) or not note.strip():
+                    self._json({"error": "Informe o texto da decisão."}, 400)
+                    return
+                decision_id = db.registrar_decisao(
+                    state["month"], item_id, "NOTA", {"texto": note.strip()}, "caso", author, reason
+                )
+            else:
+                self._json({"error": "Tipo de decisão não reconhecido."}, 400)
+                return
+        except (LayoutError, OSError) as exc:
+            self._json({"error": f"Não foi possível validar a decisão: {exc}"}, 422)
+            return
+        except ValueError as exc:
+            self._json({"error": str(exc)}, 400)
+            return
+        finally:
+            db.fechar()
+
+        if not self._start_execution(closure_dir, state):
+            self._json({"error": "A decisão foi registrada, mas não foi possível iniciar a reexecução."}, 409)
+            return
+        self._json({"decision_id": decision_id, "status": "running"}, 202)
+
+    def _close_closure(self, closure_id: str) -> None:
+        try:
+            closure_dir, state = _load_state(closure_id)
+            payload = self._read_json()
+        except FileNotFoundError as exc:
+            self._json({"error": str(exc)}, 404)
+            return
+        except ValueError as exc:
+            self._json({"error": str(exc)}, 400)
+            return
+        author = payload.get("autor")
+        reason = payload.get("motivo")
+        if not isinstance(author, str) or not author.strip() or not isinstance(reason, str) or not reason.strip():
+            self._json({"error": "Informe quem está fechando e o motivo."}, 400)
+            return
+        if state["status"] != "completed":
+            self._json({"error": "A execução precisa estar concluída antes de fechar a competência."}, 409)
+            return
+        pending = _read_csv(closure_dir / "saida" / _TABLES["pendencias"])
+        blockers = [row for row in pending if row.get("bloqueante") == "S"]
+        if blockers:
+            self._json({
+                "error": f"Não é possível fechar: ainda há {len(blockers)} pendência(s) bloqueante(s).",
+                "blocking_count": len(blockers),
+            }, 409)
+            return
+        hashes = {
+            name: hashlib.sha256((closure_dir / "saida" / name).read_bytes()).hexdigest()
+            for name in _DOWNLOADS
+        }
+        state["closure_record"] = {
+            "closed_by": author.strip(),
+            "reason": reason.strip(),
+            "closed_at": datetime.now().isoformat(timespec="seconds"),
+            "files_sha256": hashes,
+        }
+        state["status"] = "closed"
         _save_state(closure_dir, state)
         self._json(_response_state(closure_dir, state))
 
@@ -332,7 +809,7 @@ class _Handler(BaseHTTPRequestHandler):
         except FileNotFoundError as exc:
             self._json({"error": str(exc)}, 404)
             return
-        if state["status"] != "completed":
+        if state["status"] not in {"completed", "closed"}:
             self._json({"error": "As saídas aparecem depois da execução do fechamento."}, 409)
             return
         try:
@@ -348,7 +825,7 @@ class _Handler(BaseHTTPRequestHandler):
         except FileNotFoundError as exc:
             self._json({"error": str(exc)}, 404)
             return
-        if state["status"] != "completed":
+        if state["status"] not in {"completed", "closed"}:
             self._json({"error": "O rastro aparece depois da execução do fechamento."}, 409)
             return
         output_id = query.get("id_saida", [""])[0]
@@ -362,13 +839,37 @@ class _Handler(BaseHTTPRequestHandler):
             return
         self._json({"rows": [row for row in rows if row["id_saida"] == output_id]})
 
+    def _get_source(self, closure_id: str, query: dict[str, list[str]]) -> None:
+        try:
+            closure_dir, state = _load_state(closure_id)
+        except FileNotFoundError as exc:
+            self._json({"error": str(exc)}, 404)
+            return
+        if state["status"] not in {"completed", "closed"}:
+            self._json({"error": "A linha original fica disponível após a execução."}, 409)
+            return
+        source_name = query.get("arquivo", [""])[0]
+        reference = query.get("ref_origem", [""])[0]
+        if not source_name or not reference or len(reference) > 128:
+            self._json({"error": "Arquivo de origem ou referência inválidos."}, 400)
+            return
+        try:
+            row = _original_row(closure_dir, source_name, reference)
+        except (OSError, ValueError, openpyxl.utils.exceptions.InvalidFileException) as exc:
+            self._json({"error": f"Não foi possível abrir a linha original: {exc}"}, 422)
+            return
+        if row is None:
+            self._json({"error": "A linha original não foi encontrada para esta referência."}, 404)
+            return
+        self._json({"arquivo": source_name, "referencia": reference, "linha": row})
+
     def _download(self, closure_id: str, name: str) -> None:
         try:
             closure_dir, state = _load_state(closure_id)
         except FileNotFoundError as exc:
             self._json({"error": str(exc)}, 404)
             return
-        if state["status"] != "completed":
+        if state["status"] not in {"completed", "closed"}:
             self._json({"error": "Os arquivos ficam disponíveis depois da execução."}, 409)
             return
         if name == "todos.zip":
@@ -380,7 +881,9 @@ class _Handler(BaseHTTPRequestHandler):
             content_type = "application/zip"
         elif name in _DOWNLOADS:
             path = closure_dir / "saida" / name
-            content_type = "text/plain; charset=utf-8" if name.endswith(".log") else "text/csv; charset=utf-8"
+            content_type = "text/markdown; charset=utf-8" if name.endswith(".md") else (
+                "text/plain; charset=utf-8" if name.endswith(".log") else "text/csv; charset=utf-8"
+            )
         else:
             self._json({"error": "Arquivo de saída não encontrado."}, 404)
             return
