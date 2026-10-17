@@ -1,0 +1,44 @@
+"""Invariantes de consolidação (PRD 7.9). Abortam antes de escrever qualquer saída."""
+from __future__ import annotations
+
+from decimal import Decimal
+
+from ..core.money import fmt
+from ..core.rastro import Rastro
+
+# Coluna que carrega o número reportado em cada saída (as 5 que têm rastro).
+COLUNA_VALOR = {
+    "comissoes_por_lojista": "comissao_brl",
+    "divergencias_taxa": "diferenca_brl",
+    "notas_a_emitir": "valor_brl",
+    "lancamentos_classificados": "valor",
+    "pendencias": "valor_brl",
+}
+
+
+class ValidationError(Exception):
+    def __init__(self, falhas: list[str]):
+        self.falhas = falhas
+        super().__init__("\n".join(falhas))
+
+
+def validar_i_r1(saidas: dict[str, list[dict]], rastro: Rastro) -> None:
+    """I-R1: sum(rastro.valor) por id_saida == número reportado, em Decimal exato."""
+    falhas: list[str] = []
+    ids_no_rastro = set(rastro.ids())
+    for nome, coluna in COLUNA_VALOR.items():
+        vistos: set[str] = set()
+        for linha in saidas.get(nome, []):
+            id_saida, reportado = linha["id_saida"], linha[coluna]
+            if id_saida in vistos:
+                falhas.append(f"I-R1 {nome}: id_saida duplicado {id_saida}")
+                continue
+            vistos.add(id_saida)
+            if id_saida not in ids_no_rastro:
+                falhas.append(f"I-R1 {nome}: {id_saida} não tem nenhuma linha de rastro")
+            elif not isinstance(reportado, Decimal) or rastro.soma(id_saida) != reportado:
+                falhas.append(
+                    f"I-R1 {nome}: {id_saida} reportado={reportado} rastro={fmt(rastro.soma(id_saida))}"
+                )
+    if falhas:
+        raise ValidationError(falhas)
