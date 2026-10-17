@@ -56,7 +56,13 @@ def test_events_are_recorded_per_stage(dados, tmp_path):
     res = fechar("2026-09", dados, tmp_path / "s", tmp_path / "est", cliente=None)
     db = Estado(tmp_path / "est")
     ev = db.eventos(res.execucao_id)
-    assert [e["etapa"] for e in ev] == CALCULO + ["agentes", "consolidacao"]
+    assert [e["etapa"] for e in ev if e["etapa"] != "agente"] == CALCULO + ["agentes", "consolidacao"]
+    chamadas = [e for e in ev if e["etapa"] == "agente"]
+    assert chamadas
+    assert [e["ordem"] for e in ev] == list(range(1, len(ev) + 1))
+    for inicio, fim in zip(chamadas[::2], chamadas[1::2]):
+        assert (inicio["status"], fim["status"]) == ("iniciada", "concluida")
+        assert inicio["detalhe"] == fim["detalhe"]
     assert ev[0]["detalhe"]["orbe"] == 1957 and ev[-1]["detalhe"]["pendencias"] == 18
     assert db.ultima_execucao("2026-09")["status"] == "CONCLUIDA"
 

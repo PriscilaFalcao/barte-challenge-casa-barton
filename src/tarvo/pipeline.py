@@ -200,11 +200,16 @@ class _Executor:
     def __init__(self, ck: Checkpoints, estado: Estado | None, execucao_id: int | None):
         self.ck, self.estado, self.execucao_id = ck, estado, execucao_id
         self.etapas: list[tuple[str, str]] = []
+        self.ordem = 0
 
     def evento(self, etapa: str, status: str, t0: float, detalhe: dict | None = None) -> None:
         self.etapas.append((etapa, status))
+        self.registrar_evento(etapa, status, t0, detalhe)
+
+    def registrar_evento(self, etapa: str, status: str, t0: float, detalhe: dict | None = None) -> None:
+        self.ordem += 1
         if self.estado is not None:
-            self.estado.evento(self.execucao_id, len(self.etapas), etapa, status,
+            self.estado.evento(self.execucao_id, self.ordem, etapa, status,
                                int((time.perf_counter() - t0) * 1000), detalhe)
 
     def rodar(self, etapa: str, fp: str, funcao, contagens=lambda r: {}):
@@ -286,7 +291,11 @@ def _fechar(mes, dados, saida, db, execucao_id, ck, cliente, cache) -> Resultado
     for l in rastro_todo:
         por_id[l.id_saida].append(l)
     ctx = Contexto(ing.plano, ing.aurora.lancamentos + ing.meridiano.lancamentos, ing.txs, ing.contratos, por_id)
-    ag = orquestrar(excecoes, ban.resultado.lancamentos, ctx, cfg, cliente, {d["id_saida"] for d in decisoes}, cache)
+    def progresso_agente(status: str, nome: str, id_saida: str) -> None:
+        ex.registrar_evento("agente", status, time.perf_counter(), {"agente": nome, "id_saida": id_saida})
+
+    ag = orquestrar(excecoes, ban.resultado.lancamentos, ctx, cfg, cliente, {d["id_saida"] for d in decisoes},
+                    cache, progresso=progresso_agente)
     origens = collections.Counter(c.origem for c in ag.chamadas)
     ex.evento("agentes", "executada", t0, {"roteadas": len(ag.chamadas), **origens,
                                            "aplicadas": sum(c.resultado == "APLICADA" for c in ag.chamadas)})

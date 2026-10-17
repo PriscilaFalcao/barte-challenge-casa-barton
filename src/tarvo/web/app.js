@@ -314,18 +314,23 @@ function normalizeHeader(text) {
   return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/^\uFEFF/, "").toUpperCase();
 }
 
-async function identifyFile(file) {
-  const extension = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
-  if (extension === ".xlsx") return "taxas";
-  if (extension === ".eml") return "ponte";
-  if (extension === ".ofx") return "meridiano";
-  if (extension !== ".csv") throw new Error(`${file.name}: formato não aceito. Envie .csv, .xlsx, .eml ou .ofx.`);
-
-  const headerText = normalizeHeader(await file.slice(0, 8192).text());
-  if (headerText.includes("ID_TRANSACAO;DATA_MOVIMENTO;")) return "orbe"; // relatório e ajustes tardios: mesmo formato
-  if (headerText.split(/\r?\n/).some(line => line.startsWith("COD_CONTA;DESCRICAO;"))) return "plano";
-  if (headerText.split(/\r?\n/).some(line => /^DATA;LANCAMENTO;/.test(line))) return "aurora";
-  throw new Error(`${file.name}: não identifiquei o conteúdo deste CSV. Confira se é Orbe, plano de contas ou extrato Aurora.`);
+function identifyFile(file) {
+  const name = normalizeHeader(file.name);
+  const extension = name.slice(name.lastIndexOf("."));
+  const stem = name.slice(0, name.lastIndexOf("."));
+  const patterns = [
+    ["orbe", ".CSV", /(?:^|[^A-Z0-9])(?:ORBE|COMISS(?:AO|OES))(?:[^A-Z0-9]|$)/],
+    ["taxas", ".XLSX", /(?:^|[^A-Z0-9])TAXAS?(?:[^A-Z0-9]|$)/],
+    ["ponte", ".EML", /(?:^|[^A-Z0-9])(?:PONTE|CAMBIO|REMESSAS?)(?:[^A-Z0-9]|$)/],
+    ["plano", ".CSV", /(?:^|[^A-Z0-9])(?:PLANO[\s_-]+(?:DE[\s_-]+)?CONTAS|FENIX)(?:[^A-Z0-9]|$)/],
+    ["aurora", ".CSV", /(?:^|[^A-Z0-9])AURORA(?:[^A-Z0-9]|$)/],
+    ["meridiano", ".OFX", /(?:^|[^A-Z0-9])MERIDIANO(?:[^A-Z0-9]|$)/],
+  ];
+  const matches = patterns.filter(([, expected, pattern]) => extension === expected && pattern.test(stem));
+  if (matches.length !== 1) {
+    throw new Error(`${file.name}: ${matches.length ? "nome ambíguo" : "tipo não identificado pelo nome"}. Use Orbe/comissões, taxas, Ponte/câmbio/remessas, plano de contas/Fênix, Aurora ou Meridiano no nome, com a extensão correspondente.`);
+  }
+  return matches[0][0];
 }
 
 async function uploadFile(file, slot) {
@@ -339,11 +344,24 @@ async function uploadFile(file, slot) {
 }
 
 async function uploadBatch(fileList) {
-  const files = [...fileList];
-  const slots = [];
-  for (const file of files) slots.push(await identifyFile(file)); // identifica todos antes de enviar qualquer um
-  for (const [index, file] of files.entries()) await uploadFile(file, slots[index]);
+  const errors = document.querySelector("#unidentified-files");
+  errors.replaceChildren();
+  errors.hidden = true;
+  document.querySelectorAll(".file-card").forEach(card => card.classList.remove("unidentified"));
   notice.hidden = true;
+  for (const file of fileList) {
+    let slot;
+    try {
+      slot = identifyFile(file);
+    } catch (error) {
+      const item = document.createElement("li");
+      item.textContent = error.message;
+      errors.append(item);
+      errors.hidden = false;
+      continue;
+    }
+    await uploadFile(file, slot);
+  }
 }
 
 function renderDownloads() {
@@ -376,12 +394,33 @@ function createControl(tag, options = {}) {
   return control;
 }
 
-function renderAgentCalls(calls) {
+const agentLabels = {
+  classificador: "Classificador",
+  interprete_taxas: "Intérprete de taxas",
+  investigador: "Investigador",
+};
+
+function renderAgentWorking(activity) {
+  const events = activity.events || [];
+  const last = events.at(-1);
+  const active = activity.status === "running" && activity.execution?.status === "EXECUTANDO";
+  const working = active && last?.etapa === "agente" && last.status === "iniciada";
+  const indicator = document.querySelector("#agent-working");
+  indicator.hidden = !working;
+  document.querySelector(".agent-activity").setAttribute("aria-busy", String(Boolean(working)));
+  if (working) {
+    const name = agentLabels[last.detalhe.agente] || last.detalhe.agente;
+    document.querySelector("#agent-working-name").textContent = `${name} trabalhando…`;
+    document.querySelector("#agent-working-detail").textContent = `Analisando o item ${last.detalhe.id_saida}. Aguarde a resposta do agente.`;
+  }
+}
+
+function renderAgentCalls(calls, running = false) {
   const root = document.querySelector("#agent-calls");
   if (!calls.length) {
     const empty = document.createElement("p");
     empty.className = "helper-text";
-    empty.textContent = "Nenhuma chamada de agente registrada nesta execução.";
+    empty.textContent = running ? "Aguardando a conclusão das chamadas dos agentes…" : "Nenhuma chamada de agente registrada nesta execução.";
     root.replaceChildren(empty);
     return;
   }
@@ -389,7 +428,7 @@ function renderAgentCalls(calls) {
     const item = document.createElement("div");
     item.className = "agent-call";
     const name = document.createElement("strong");
-    name.textContent = `${call.agente} · ${call.id_saida}`;
+    name.textContent = `${agentLabels[call.agente] || call.agente} · ${call.id_saida}`;
     const details = document.createElement("span");
     details.className = "agent-call-meta";
     details.textContent = `${call.origem} · ${call.resultado}${call.detalhe ? ` · ${call.detalhe}` : ""}`;
@@ -410,7 +449,7 @@ function renderExecutionEvents(events) {
     agentes: "Revisão assistida",
     consolidacao: "Validação e consolidação",
   };
-  root.replaceChildren(...events.map(event => {
+  root.replaceChildren(...events.filter(event => event.etapa !== "agente").map(event => {
     const item = document.createElement("li");
     item.className = "event-item";
     const name = document.createElement("strong");
@@ -441,7 +480,8 @@ async function loadActivity() {
   badge.textContent = stageLabels[activity.execution?.status] || activity.status;
   badge.className = `badge ${activity.status === "running" ? "badge-running" : activity.status === "failed" ? "badge-blocked" : "badge-success"}`;
   renderExecutionEvents(activity.events || []);
-  renderAgentCalls(activity.agent_calls || []);
+  renderAgentWorking(activity);
+  renderAgentCalls(activity.agent_calls || [], activity.status === "running");
 }
 
 function renderDecisionFields(container, decisionType, scope, item) {
@@ -653,6 +693,7 @@ async function monitorExecution() {
   document.querySelector("#execution-badge").className = "badge badge-running";
   document.querySelector("#execution-events").replaceChildren();
   document.querySelector("#agent-calls").replaceChildren();
+  document.querySelector("#agent-working").hidden = true;
   setWorkflow("run");
   await loadActivity();
   const source = new EventSource(`/api/closures/${state.closureId}/events`);
@@ -663,6 +704,8 @@ async function monitorExecution() {
   source.addEventListener("complete", async event => {
     source.close();
     state.eventSource = null;
+    document.querySelector("#agent-working").hidden = true;
+    document.querySelector(".agent-activity").setAttribute("aria-busy", "false");
     const result = JSON.parse(event.data);
     if (result.status === "completed" || result.status === "closed") {
       await showCompletedClosure(result);
@@ -763,6 +806,9 @@ async function createClosure() {
     document.querySelector("#table-search").value = "";
     document.querySelector("#batch-files").value = "";
     document.querySelectorAll(".file-card input").forEach(input => { input.value = ""; });
+    document.querySelector("#unidentified-files").replaceChildren();
+    document.querySelector("#unidentified-files").hidden = true;
+    document.querySelectorAll(".file-card").forEach(card => card.classList.remove("unidentified"));
     notice.hidden = true;
     updateFileStatus();
     setWorkflow("files");
@@ -787,11 +833,10 @@ document.querySelector("#month-form").addEventListener("submit", event => {
 document.querySelectorAll(".file-card input").forEach(input => {
   input.addEventListener("change", async () => {
     const files = [...input.files];
-    const slot = input.closest(".file-card").dataset.slot;
     if (!files.length) return;
     try {
-      for (const file of files) await uploadFile(file, slot);
-      notice.hidden = true;
+      await uploadBatch(files);
+      input.closest(".file-card").classList.toggle("unidentified", !document.querySelector("#unidentified-files").hidden);
     } catch (error) {
       showNotice(error.message);
       input.value = "";

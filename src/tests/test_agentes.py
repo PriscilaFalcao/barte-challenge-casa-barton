@@ -11,6 +11,7 @@ import pytest
 from tarvo.agents import classificador, interprete_taxas, investigador
 from tarvo.agents.base import Agente, ClienteAnthropic, cliente_padrao
 from tarvo.pipeline import fechar
+from tarvo.estado.db import Estado
 
 AURORA = "05a_extrato_banco_aurora_cc4471_set2026.csv"
 
@@ -55,6 +56,57 @@ def _hipotese(entrada):
 def _rodar(dados, tmp_path, cliente, nome="s"):
     res = fechar("2026-09", dados, tmp_path / nome, tmp_path / "est", cliente=cliente, cache=tmp_path / "cache")
     return res, _ler(tmp_path / nome / "pendencias.csv"), _ler(tmp_path / nome / "lancamentos_classificados.csv")
+
+def test_agent_start_is_visible_while_client_is_working(dados_sem_regra, tmp_path):
+    state_dir = tmp_path / "estado-progresso"
+    observed = []
+
+    class ClienteObservado(Falso):
+        def gerar(self, modelo, sistema, entrada, schema, max_tokens):
+            db = Estado(state_dir)
+            try:
+                execution = db.ultima_execucao("2026-09")
+                event = db.eventos(execution["id"])[-1]
+            finally:
+                db.fechar()
+            assert event["etapa"] == "agente" and event["status"] == "iniciada"
+            assert event["detalhe"]["id_saida"]
+            observed.append(event["detalhe"]["agente"])
+            return super().gerar(modelo, sistema, entrada, schema, max_tokens)
+
+    client = ClienteObservado({
+        "classificador": {"conta_codigo": "4.2.06", "confianca": 0.93, "justificativa": "gráfica"},
+        "investigador": _hipotese,
+        "interprete": {},
+    })
+    result = fechar("2026-09", dados_sem_regra, tmp_path / "saida-progresso", state_dir,
+                    cliente=client, cache=tmp_path / "cache-progresso")
+    assert {"classificador", "investigador"} <= set(observed)
+    db = Estado(state_dir)
+    try:
+        events = [event for event in db.eventos(result.execucao_id) if event["etapa"] == "agente"]
+    finally:
+        db.fechar()
+    assert len(events) == 2 * len(result.agentes.chamadas)
+    assert all(event["status"] == "concluida" for event in events[1::2])
+
+
+def test_unexpected_agent_failure_finishes_loading_event(dados, tmp_path, monkeypatch):
+    def fail(*args, **kwargs):
+        raise RuntimeError("Falha de teste")
+
+    monkeypatch.setattr(Agente, "executar", fail)
+    state_dir = tmp_path / "estado-erro"
+    with pytest.raises(RuntimeError, match="Falha de teste"):
+        fechar("2026-09", dados, tmp_path / "saida-erro", state_dir, cliente=None)
+    db = Estado(state_dir)
+    try:
+        execution = db.ultima_execucao("2026-09")
+        event = db.eventos(execution["id"])[-1]
+    finally:
+        db.fechar()
+    assert execution["status"] == "ERRO"
+    assert event["etapa"] == "agente" and event["status"] == "erro"
 
 
 # --- modo sem IA ----------------------------------------------------------------------------------------

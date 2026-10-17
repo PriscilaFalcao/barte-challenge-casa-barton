@@ -4,16 +4,16 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#ffffff">
-    <title>Tarvo · Fechamentos</title>
+    <title>Casa Barton · Fechamentos</title>
     <link rel="stylesheet" href="/app.css">
     <script src="/app.js" defer></script>
   </head>
   <body>
     <div class="app-shell">
       <aside class="sidebar" aria-label="Navegação principal">
-        <a class="brand" href="/" aria-label="Tarvo, início">
-          <span class="brand-mark" aria-hidden="true">t</span>
-          <span>tarvo<span class="brand-period">.</span></span>
+        <a class="brand" href="/" aria-label="Casa Barton, início">
+          <span class="brand-house">casa</span>
+          <span>Bart<span class="brand-accent">on</span></span>
         </a>
         <div class="workspace-label">FINANCEIRO</div>
         <nav class="main-nav">
@@ -29,7 +29,7 @@
         </nav>
         <div class="sidebar-foot">
           <span class="status-dot" aria-hidden="true"></span>
-          <span>Motor Tarvo conectado</span>
+          <span>Motor Casa Barton conectado</span>
         </div>
       </aside>
 
@@ -99,8 +99,9 @@
               <input id="batch-files" type="file" accept=".csv,.xlsx,.eml,.ofx" multiple>
               <span class="batch-upload-icon" aria-hidden="true">↑</span>
               <span><strong>Solte os arquivos do mês aqui</strong> ou <span class="upload-link">selecione no computador</span></span>
-              <span class="batch-help">Identificamos o tipo pelo conteúdo e pelo formato esperado.</span>
+              <span class="batch-help">Identificamos o destino pelo nome e pela extensão. Arquivos não reconhecidos aparecem em vermelho.</span>
             </label>
+            <ul id="unidentified-files" class="unidentified-files" aria-live="polite" aria-label="Arquivos não identificados" hidden></ul>
             <div class="upload-grid">
               <label class="file-card" data-slot="orbe">
                 <input type="file" accept=".csv" multiple>
@@ -185,6 +186,13 @@
             <ol class="event-list" id="execution-events" aria-label="Etapas executadas"></ol>
             <section class="agent-activity" aria-labelledby="agents-title">
               <h3 id="agents-title">Atividade dos agentes</h3>
+              <div id="agent-working" class="agent-working" role="status" hidden>
+                <span class="spinner" aria-hidden="true"></span>
+                <div>
+                  <strong id="agent-working-name"></strong>
+                  <p id="agent-working-detail"></p>
+                </div>
+              </div>
               <div id="agent-calls" class="agent-call-list">
                 <p class="helper-text">As chamadas serão exibidas conforme o motor as registrar.</p>
               </div>
@@ -275,7 +283,7 @@
         <button class="icon-button" id="close-drawer" type="button" aria-label="Fechar detalhe">×</button>
       </div>
       <div id="drawer-content" class="drawer-content"></div>
-      <div class="drawer-footer"><span class="status-dot"></span> Dados calculados pelo motor Tarvo</div>
+      <div class="drawer-footer"><span class="status-dot"></span> Dados calculados pelo motor Casa Barton</div>
     </aside>
 
     <dialog id="month-dialog" class="month-dialog">

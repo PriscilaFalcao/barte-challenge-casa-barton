@@ -3,6 +3,7 @@ para o agente da tabela `agentes.rotas`, valida a saída (guardrail + limiar) e 
 como proposta ou deixar com a pessoa. Não decide nada de negócio e não toca em valor em R$."""
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
@@ -16,7 +17,7 @@ from ..ingest.orbe import OrbeTx
 from ..ingest.plano_contas import Conta
 from ..ingest.taxas import ContratoLinha
 from . import classificador, interprete_taxas, investigador
-from .base import CACHE_PADRAO, Agente, ClienteLLM
+from .base import CACHE_PADRAO, Agente, ClienteLLM, Resposta
 
 _CLASSES = {"classificador": classificador.Classificador, "interprete_taxas": interprete_taxas.InterpreteTaxas,
             "investigador": investigador.Investigador}
@@ -53,7 +54,8 @@ class Contexto:
 
 
 def orquestrar(excecoes: list[Excecao], lancamentos: list[dict], ctx: Contexto, cfg: Config,
-               cliente: ClienteLLM | None, decididas: set[str], cache: Path = CACHE_PADRAO) -> ResultadoAgentes:
+               cliente: ClienteLLM | None, decididas: set[str], cache: Path = CACHE_PADRAO,
+               progresso: Callable[[str, str, str], None] | None = None) -> ResultadoAgentes:
     ca = cfg.agentes
     agentes: dict[str, Agente] = {nome: cls(ca.modelos.get(nome, ""), cliente, cache)
                                   for nome, cls in _CLASSES.items() if nome in set(ca.rotas.values())}
@@ -61,6 +63,19 @@ def orquestrar(excecoes: list[Excecao], lancamentos: list[dict], ctx: Contexto, 
     linhas_por_id = {l["id_saida"]: l for l in res.lancamentos}
     lan_por_ref = {(l.banco, l.ref_origem): l for l in ctx.lancamentos}
     contrato_por_ref = {c.ref_origem: c for c in ctx.contratos}
+
+    def executar(agente: Agente, entrada: dict, pode: bool, nome: str, id_saida: str) -> Resposta:
+        if progresso:
+            progresso("iniciada", nome, id_saida)
+        try:
+            resposta = agente.executar(entrada, pode)
+        except Exception:
+            if progresso:
+                progresso("erro", nome, id_saida)
+            raise
+        if progresso:
+            progresso("concluida", nome, id_saida)
+        return resposta
 
     for exc in sorted(excecoes, key=lambda e: e.id_saida):  # ordem fixa: mesmo teto de chamadas, mesmo resultado
         nome = ca.rotas.get(exc.tipo)
@@ -77,7 +92,7 @@ def orquestrar(excecoes: list[Excecao], lancamentos: list[dict], ctx: Contexto, 
                 continue
             cands = classificador.candidatos(l, ctx.plano, cfg.conta_provisoria)
             ent = classificador.entrada(l, cands)
-            r = agente.executar(ent, pode)
+            r = executar(agente, ent, pode, nome, exc.id_saida)
             res.chamadas_api += r.origem == "api"
             if r.saida is None:
                 res.chamadas.append(Chamada(nome, exc.id_saida, r.hash, r.origem, "SEM_RESPOSTA", r.detalhe))
@@ -104,7 +119,7 @@ def orquestrar(excecoes: list[Excecao], lancamentos: list[dict], ctx: Contexto, 
                 res.excecoes.append(exc)
                 continue
             ent = interprete_taxas.entrada(c, ctx.contratos)
-            r = agente.executar(ent, pode)
+            r = executar(agente, ent, pode, nome, exc.id_saida)
             res.chamadas_api += r.origem == "api"
             res.excecoes.append(exc)  # nunca aplica sozinho: regra de contrato exige confirmação humana
             if r.saida is None:
@@ -119,7 +134,7 @@ def orquestrar(excecoes: list[Excecao], lancamentos: list[dict], ctx: Contexto, 
             pend = {"tipo": exc.tipo.value, "ref_origem": exc.ref_origem, "valor_brl": exc.valor_brl,
                     "motivo": exc.motivo}
             ent = investigador.entrada(pend, ctx.rastro_por_id.get(exc.id_saida, []), ctx.lancamentos, ctx.txs)
-            r = agente.executar(ent, pode)
+            r = executar(agente, ent, pode, nome, exc.id_saida)
             res.chamadas_api += r.origem == "api"
             res.excecoes.append(exc)  # não decide: só anexa hipóteses e pergunta
             if r.saida is None:
