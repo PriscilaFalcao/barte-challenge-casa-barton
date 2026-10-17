@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#ffffff">
+    <title>Tarvo · Fechamentos</title>
+    <link rel="stylesheet" href="/app.css">
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Navegação principal">
+        <a class="brand" href="/" aria-label="Tarvo, início">
+          <span class="brand-mark" aria-hidden="true">t</span>
+          <span>tarvo<span class="brand-period">.</span></span>
+        </a>
+        <div class="workspace-label">FINANCEIRO</div>
+        <nav class="main-nav">
+          <a class="nav-link active" href="#fechamentos" aria-current="page">
+            <span class="nav-icon" aria-hidden="true">▦</span> Fechamentos
+          </a>
+          <a class="nav-link" href="#validacoes" data-notice="A fila de validações será integrada na próxima etapa.">
+            <span class="nav-icon" aria-hidden="true">✓</span> Validações
+          </a>
+          <a class="nav-link" href="#configuracoes" data-notice="As configurações versionadas ainda não estão integradas.">
+            <span class="nav-icon" aria-hidden="true">⚙</span> Configurações
+          </a>
+        </nav>
+        <div class="sidebar-foot">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span>Motor Tarvo conectado</span>
+        </div>
+      </aside>
+
+      <main class="main-content" id="fechamentos">
+        <header class="topbar">
+          <div class="breadcrumb">Workspace <span>/</span> Fechamentos</div>
+          <div class="user-chip"><span class="avatar">F</span><span>Financeiro</span></div>
+        </header>
+        <section class="page-heading">
+          <div>
+            <p class="eyebrow">OPERAÇÃO FINANCEIRA</p>
+            <h1>Fechamentos</h1>
+            <p class="page-subtitle">Acompanhe o processamento e confira os resultados do mês.</p>
+          </div>
+          <button class="button button-primary" id="new-closure" type="button">
+            <span aria-hidden="true">＋</span> Novo fechamento
+          </button>
+        </section>
+
+        <section class="workflow" aria-label="Etapas do fechamento">
+          <div class="workflow-step current" data-step="files"><span class="step-number">1</span><span>Arquivos</span></div>
+          <span class="step-connector"></span>
+          <div class="workflow-step" data-step="review"><span class="step-number">2</span><span>Conferência</span></div>
+          <span class="step-connector"></span>
+          <div class="workflow-step" data-step="run"><span class="step-number">3</span><span>Execução</span></div>
+          <span class="step-connector"></span>
+          <div class="workflow-step" data-step="validation"><span class="step-number">4</span><span>Validações</span></div>
+          <span class="step-connector"></span>
+          <div class="workflow-step" data-step="outputs"><span class="step-number">5</span><span>Saídas</span></div>
+          <span class="step-connector"></span>
+          <div class="workflow-step" data-step="close"><span class="step-number">6</span><span>Fechar</span></div>
+        </section>
+
+        <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+
+        <section id="empty-state" class="empty-state card">
+          <div class="empty-art" aria-hidden="true">
+            <span class="empty-art-back"></span>
+            <span class="empty-art-front">↗</span>
+          </div>
+          <p class="eyebrow">SEU PRÓXIMO FECHAMENTO</p>
+          <h2>Vamos começar?</h2>
+          <p>Crie um fechamento, envie os arquivos do mês e confira os dados antes de executar.</p>
+          <button class="button button-primary" type="button" data-create>
+            Criar fechamento <span aria-hidden="true">→</span>
+          </button>
+        </section>
+
+        <section id="closure-view" hidden>
+          <section id="upload-panel" class="card upload-panel">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">NOVO FECHAMENTO <span class="month-badge" id="month-label"></span></p>
+                <h2>Envie os arquivos do mês</h2>
+                <p>Os arquivos são conferidos pelo motor antes de qualquer saída ser gerada.</p>
+              </div>
+            </div>
+            <div class="upload-grid">
+              <label class="file-card" data-slot="orbe">
+                <input type="file" accept=".csv">
+                <span class="file-icon" aria-hidden="true">CSV</span>
+                <span class="file-title">Relatório de comissões</span>
+                <span class="file-detail">Orbe · formato .csv</span>
+                <span class="file-name">Escolher arquivo</span>
+              </label>
+              <label class="file-card" data-slot="taxas">
+                <input type="file" accept=".xlsx">
+                <span class="file-icon" aria-hidden="true">XLS</span>
+                <span class="file-title">Taxas contratadas</span>
+                <span class="file-detail">Planilha · formato .xlsx</span>
+                <span class="file-name">Escolher arquivo</span>
+              </label>
+              <label class="file-card" data-slot="ponte">
+                <input type="file" accept=".eml">
+                <span class="file-icon" aria-hidden="true">EML</span>
+                <span class="file-title">Relatório de remessas</span>
+                <span class="file-detail">Ponte Câmbio · formato .eml</span>
+                <span class="file-name">Escolher arquivo</span>
+              </label>
+            </div>
+            <div class="integration-note">
+              <span class="info-icon" aria-hidden="true">i</span>
+              <p><strong>Integração inicial:</strong> o motor atual processa Orbe, taxas e Ponte. Plano de contas e extratos bancários ainda não estão conectados ao pipeline.</p>
+            </div>
+            <div class="actions-row">
+              <p class="helper-text" id="upload-status">Envie os 3 arquivos para continuar.</p>
+              <button class="button button-primary" id="validate-files" type="button" disabled>Conferir arquivos <span aria-hidden="true">→</span></button>
+            </div>
+          </section>
+
+          <section id="validation-panel" class="card result-panel" hidden>
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">CONFERÊNCIA CONCLUÍDA</p>
+                <h2>Arquivos prontos para executar</h2>
+                <p>O motor leu os arquivos e concluiu as validações disponíveis nesta versão.</p>
+              </div>
+              <span class="badge badge-success"><span class="status-dot"></span> Sem erros estruturais</span>
+            </div>
+            <div id="preview-summary" class="summary-grid"></div>
+            <div class="actions-row">
+              <p class="helper-text">A execução usa o mesmo pipeline da linha de comando.</p>
+              <button class="button button-primary" id="run-closure" type="button">Executar fechamento <span aria-hidden="true">→</span></button>
+            </div>
+          </section>
+
+          <section id="results-panel" hidden>
+            <div class="results-heading">
+              <div>
+                <p class="eyebrow">FECHAMENTO <span id="results-month"></span></p>
+                <h2>Resumo do mês</h2>
+              </div>
+              <a class="button button-secondary" id="download-all" href="#" download>Baixar todas as saídas <span aria-hidden="true">↓</span></a>
+            </div>
+            <div class="summary-grid" id="results-summary"></div>
+            <section class="card outputs-card">
+              <div class="outputs-header">
+                <div>
+                  <h3>Saídas do fechamento</h3>
+                  <p>Selecione uma linha para consultar os itens que formam o valor.</p>
+                </div>
+                <label class="search-box">
+                  <span class="search-icon" aria-hidden="true">⌕</span>
+                  <span class="sr-only">Buscar nesta tabela</span>
+                  <input id="table-search" type="search" placeholder="Buscar">
+                </label>
+              </div>
+              <div class="tabs" role="tablist" aria-label="Tabelas de saída">
+                <button class="tab active" type="button" role="tab" aria-selected="true" data-table="comissoes">Comissões</button>
+                <button class="tab" type="button" role="tab" aria-selected="false" data-table="divergencias">Divergências</button>
+                <button class="tab" type="button" role="tab" aria-selected="false" data-table="notas">Notas</button>
+                <button class="tab" type="button" role="tab" aria-selected="false" data-table="pendencias">Pendências</button>
+              </div>
+              <div class="table-wrap" tabindex="0" aria-label="Tabela de resultados com rolagem horizontal">
+                <table>
+                  <thead id="table-head"></thead>
+                  <tbody id="table-body"></tbody>
+                </table>
+              </div>
+              <div class="table-footer" id="table-footer"></div>
+            </section>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+    <aside class="detail-drawer" id="detail-drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" aria-hidden="true" hidden>
+      <div class="drawer-header">
+        <div>
+          <p class="eyebrow">DETALHE DO LANÇAMENTO</p>
+          <h2 id="drawer-title">Rastro de origem</h2>
+        </div>
+        <button class="icon-button" id="close-drawer" type="button" aria-label="Fechar detalhe">×</button>
+      </div>
+      <div id="drawer-content" class="drawer-content"></div>
+      <div class="drawer-footer"><span class="status-dot"></span> Dados calculados pelo motor Tarvo</div>
+    </aside>
+
+    <dialog id="month-dialog" class="month-dialog">
+      <form method="dialog" id="month-form">
+        <div class="dialog-heading">
+          <div class="dialog-mark" aria-hidden="true">＋</div>
+          <button class="icon-button" value="cancel" aria-label="Cancelar">×</button>
+        </div>
+        <p class="eyebrow">NOVO FECHAMENTO</p>
+        <h2>Qual mês vamos fechar?</h2>
+        <p>Escolha a competência dos arquivos que você vai enviar.</p>
+        <label class="field-label" for="month-input">Mês de competência</label>
+        <input class="month-input" id="month-input" type="month" required value="2026-09">
+        <button class="button button-primary dialog-submit" id="create-confirm" value="create">Continuar <span aria-hidden="true">→</span></button>
+      </form>
+    </dialog>
+  </body>
+</html>

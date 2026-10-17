@@ -16,7 +16,15 @@ def main(argv: list[str] | None = None) -> None:
     f.add_argument("--mes", required=True, help="AAAA-MM, ex.: 2026-09")
     f.add_argument("--dados", type=Path, default=Path("dados"))
     f.add_argument("--saida", type=Path, default=Path("saida"))
+    web = sub.add_parser("web", help="inicia a interface local")
+    web.add_argument("--port", type=int, default=8000)
     a = ap.parse_args(argv)
+
+    if a.cmd == "web":
+        from .web import serve
+
+        serve(a.port)
+        return
 
     res = fechar(a.mes, a.dados, a.saida)
     def total(linha: str) -> Decimal:
