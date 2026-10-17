@@ -83,5 +83,14 @@ def calcular_notas(comissoes: list[dict], rastro: Rastro, mes: str) -> Resultado
                 "discriminacao": _TEMPLATE["REMESSA"].format(mm=mm, aaaa=aaaa),
             })
             _copiar(rastro, origem, id_nota)
+            # ✅ Lucca 21h56 / Helena 22h33: conferir o TED do repasse quando cair é "uma pendência boa". Valor
+            # esperado = a nota; as contestações não foram abertas, então nenhum desconto é presumido (✅ R9).
+            exc = Excecao.nova(
+                TipoExcecao.CONFERIR_MES_SEGUINTE, f"REPASSE-PONTE-{competencia}", total,
+                f"Conferir no extrato do Meridiano o TED de repasse da Ponte referente a {mm}/{aaaa} quando cair: "
+                f"esperado R$ {fmt(total)} (valor da nota). O total do relatório da Ponte inclui a duplicata e os "
+                f"spreads negativos; diferença no TED vai para a contestação.")
+            res.excecoes.append(exc)
+            _copiar(rastro, origem, exc.id_saida)
     res.excecoes.sort(key=lambda e: e.id_saida)
     return res

@@ -6,6 +6,7 @@ import pytest
 
 from tarvo.config import carregar_defaults
 from tarvo.contracts.resolver import Resolvedor
+from tarvo.core.excecoes import TipoExcecao
 from tarvo.core.rastro import Rastro
 from tarvo.engines.checkout import calcular_checkout
 from tarvo.engines.divergencias import calcular_divergencias
@@ -25,7 +26,7 @@ def corrida(dados):
     txs = ler_orbe(dados / "01_orbe_relatorio_comissoes_set2026.csv")
     rastro = Rastro()
     chk = calcular_checkout(txs, reg, Resolvedor(contratos, cfg.overrides), "2026-09", rastro)
-    div = calcular_divergencias(chk.linhas, rastro)
+    div = calcular_divergencias(chk.linhas, rastro, "2026-09", {c["cnpj"]: c["lojista"] for c in chk.comissoes})
     return chk, div, rastro
 
 
@@ -88,4 +89,18 @@ def test_invariants_and_pending_per_divergence(corrida):
     pend = [{"id_saida": e.id_saida, "valor_brl": e.valor_brl} for e in chk.excecoes + div.excecoes]
     validar_i_r1({"comissoes_por_lojista": chk.comissoes, "divergencias_taxa": div.divergencias,
                   "pendencias": pend}, rastro)
-    assert len(div.excecoes) == 210 and {e.quem_decide for e in div.excecoes} == {"Helena"}
+    por_tipo = {(e.tipo, e.ref_origem): e.valor_brl for e in div.excecoes}
+    assert por_tipo == {
+        (TipoExcecao.DEVOLUCAO_LOJISTA, f"{CASA}-202609"): D("15397.42"),
+        (TipoExcecao.DIVERGENCIA_ORBE, f"{ROTA}-202609"): D("1546.28"),
+        (TipoExcecao.DIVERGENCIA_ORBE, f"{BRIDGE}-202609"): D("29.95"),
+    }
+
+
+def test_casa_lines_are_marked_as_unannounced_exemption_and_others_as_contract(corrida):
+    _, div, _ = corrida
+    natureza = {d["cnpj"]: set() for d in div.divergencias}
+    for d in div.divergencias:
+        natureza[d["cnpj"]].add(d["natureza"])
+    assert natureza == {CASA: {"ISENCAO_NAO_INFORMADA_ORBE"}, ROTA: {"DIVERGENCIA_CONTRATO"},
+                        BRIDGE: {"DIVERGENCIA_CONTRATO"}}

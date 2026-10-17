@@ -15,8 +15,12 @@ from ..core.rastro import Rastro
 from ..identity.registro import Registro
 from ..ingest.ponte import ARQUIVO as ARQUIVO_PONTE
 from ..ingest.ponte import OpPonte
+from .divergencias import CONTRATO
 
 STATUS_CONHECIDOS = {"APROVADO", "APROVADO C/ RESSALVA"}  # ✅ R7: a ressalva não muda nada
+
+# Naturezas de uma contestação com a Ponte, na ordem em que aparecem no motivo.
+EXCESSO, NEGATIVO, DUPLICATA = "excesso de spread", "spread negativo", "operação duplicada"
 
 
 @dataclass(frozen=True)
@@ -25,6 +29,16 @@ class LinhaRemessa:
     cnpj14: str
     comissao: Decimal
     regra_id: str  # R1, ou R4 quando o realizado inclui excesso sobre o contratado
+
+
+@dataclass(frozen=True)
+class _ItemContestacao:
+    natureza: str
+    n_op: str
+    valor: Decimal
+    componente: str
+    regra: str
+    detalhe: str
 
 
 @dataclass
@@ -37,38 +51,54 @@ class ResultadoRemessa:
 
 def _pendencia(res: ResultadoRemessa, rastro: Rastro, tipo: TipoExcecao, ref: str, valor: Decimal,
                motivo: str, origens: list[tuple[str, Decimal, str]], regra: str) -> None:
-    """origens: (componente, valor, ref_origem) de cada linha de rastro; a soma tem que dar `valor`.
-
-    Mesmo tipo e mesma operação (ex.: duplicada e também divergente) viram UMA pendência: o id é
-    determinístico e a Helena decide a operação de uma vez. Valor e motivo se somam, o rastro ganha as linhas.
-    """
-    nova = Excecao.nova(tipo, ref, valor, motivo)
-    for i, existente in enumerate(res.excecoes):
-        if existente.id_saida == nova.id_saida:
-            res.excecoes[i] = Excecao(tipo, ref, existente.valor_brl + valor,
-                                      f"{existente.motivo} Também: {motivo}", existente.quem_decide)
-            break
-    else:
-        res.excecoes.append(nova)
+    """origens: (componente, valor, ref_origem) de cada linha de rastro; a soma tem que dar `valor`."""
+    exc = Excecao.nova(tipo, ref, valor, motivo)
+    res.excecoes.append(exc)
     for componente, v, origem in origens:
-        rastro.add(nova.id_saida, ARQUIVO_PONTE, origem, v, componente, "", regra)
+        rastro.add(exc.id_saida, ARQUIVO_PONTE, origem, v, componente, "", regra)
+
+
+def _contestacoes(res: ResultadoRemessa, rastro: Rastro, mes: str, nomes: dict[str, str],
+                  itens: dict[str, list[_ItemContestacao]]) -> None:
+    """✅ Casa Barton 11h01: uma pendência por contraparte (Ponte) e por lojista, com o detalhe das operações
+    anexado; é o rascunho de contestação. ⚠️ R13: valor = soma dos desvios de cada natureza, com sinal."""
+    competencia = mes.replace("-", "")
+    for cnpj, lista in sorted(itens.items()):
+        total = sum((i.valor for i in lista), Decimal("0"))
+        partes = []
+        for natureza in (EXCESSO, NEGATIVO, DUPLICATA):
+            do_tipo = [i for i in lista if i.natureza == natureza]
+            if do_tipo:
+                ops = ", ".join(sorted({i.n_op for i in do_tipo}))
+                detalhes = "; ".join(sorted({i.detalhe for i in do_tipo}))
+                partes.append(f"{natureza}: {len(do_tipo)} item(ns), R$ {fmt(sum((i.valor for i in do_tipo), Decimal('0')))}"
+                              f" ({detalhes}) em {ops}")
+        motivo = (f"Contestação com a Ponte, {nomes.get(cnpj, cnpj)} em {mes[5:]}/{mes[:4]}. "
+                  + ". ".join(p[0].upper() + p[1:] for p in partes)
+                  + ". Nada contestado ainda: não assumir desconto no repasse.")
+        exc = Excecao.nova(TipoExcecao.CONTESTACAO_PONTE, f"{cnpj}-{competencia}", total, motivo)
+        res.excecoes.append(exc)
+        for i in sorted(lista, key=lambda i: (i.n_op, i.componente)):
+            rastro.add(exc.id_saida, ARQUIVO_PONTE, i.n_op, i.valor, i.componente, "", i.regra)
 
 
 def calcular_remessa(
     ops: list[OpPonte], registro: Registro, resolvedor: Resolvedor, mes: str, rastro: Rastro,
     participacao: Decimal = Decimal("0.50"),
     tolerancia_spread_pp: Decimal = Decimal("0.01"),
-    spread_negativo_em_divergencias: bool = True,
+    spread_negativo_em_divergencias: bool = False,
     ledger: Ledger | None = None,
 ) -> ResultadoRemessa:
-    """Parâmetros ⚠️ com default documentado: `participacao` (✅ R1, 50%), `tolerancia_spread_pp` (⚠️ R11,
-    🟡 V9) e `spread_negativo_em_divergencias` (⚠️ R12, 🟡 V4). Competência = data de contratação (✅ R8)."""
+    """Parâmetros com default documentado: `participacao` (✅ R1, 50%), `tolerancia_spread_pp` (⚠️ R11,
+    ✅ aceita se escrita) e `spread_negativo_em_divergencias` (✅ V4: spread negativo não é divergência,
+    porque o lojista não pagou a mais; é só contestação). Competência = data de contratação (✅ R8)."""
     res = ResultadoRemessa()
     totais: dict[str, Decimal] = collections.defaultdict(Decimal)
     nomes: dict[str, str] = {}
-    nao_resolvidas: dict[str, list[OpPonte]] = collections.defaultdict(list)
+    nao_resolvidas: dict[str, list[tuple[OpPonte, Decimal]]] = collections.defaultdict(list)
     duplicatas: dict[str, list[OpPonte]] = collections.defaultdict(list)
     primeiras: dict[str, OpPonte] = {}
+    contestar: dict[str, list[_ItemContestacao]] = collections.defaultdict(list)
 
     def meia(o: OpPonte) -> Decimal:
         return round_money(participacao * o.spread_brl)
@@ -90,71 +120,75 @@ def calcular_remessa(
                        f"comissão até alguém definir o tratamento.", [("SPREAD", meia(o), n_op)], "R7")
             continue
         entidade = registro.classificar(cnpj=o.cnpj14)
-        if entidade.situacao != "LOJISTA":
-            nao_resolvidas[o.cnpj14].append(o)
-            continue
-        loj = entidade.lojista
-        nomes[loj.cnpj14] = loj.nome_canonico
+        resolvida = entidade.situacao == "LOJISTA"
+        # ✅ Desbravadores: CNPJ fora do cadastro entra na comissão (a Ponte paga e a nota tem que bater com o
+        # repasse) e vira pendência de cadastro para o comercial. Sem contrato, a divergência não é avaliada.
+        nomes.setdefault(o.cnpj14, entidade.lojista.nome_canonico if resolvida else o.cliente or o.cnpj14)
 
         divergente, diferenca, contratado_pp = False, Decimal("0"), None
         aplicado_pp = o.spread_pct * 100
-        try:
-            contratado_pp = resolvedor.spread(loj.cnpj14, o.data_contratacao).pct
-            divergente = abs(aplicado_pp - contratado_pp) > tolerancia_spread_pp
-            if divergente:  # R10: base é Valor ME × PTAX, e o sinal é o de D1 (aplicado − contratado)
-                diferenca = round_money(o.valor_me * o.ptax * (o.spread_pct - contratado_pp / 100))
-        except ContratoError as exc:
-            _pendencia(res, rastro, exc.tipo, n_op, Decimal("0.00"),
-                       f"{exc.motivo}. A comissão da operação foi calculada, mas a divergência de spread "
-                       f"não pôde ser avaliada.", [("SPREAD", Decimal("0.00"), n_op)], "R10")
+        if resolvida:
+            try:
+                contratado_pp = resolvedor.spread(o.cnpj14, o.data_contratacao).pct
+                divergente = abs(aplicado_pp - contratado_pp) > tolerancia_spread_pp
+                if divergente:  # R10: base é Valor ME × PTAX, e o sinal é o de D1 (aplicado − contratado)
+                    diferenca = round_money(o.valor_me * o.ptax * (o.spread_pct - contratado_pp / 100))
+            except ContratoError as exc:
+                _pendencia(res, rastro, exc.tipo, n_op, Decimal("0.00"),
+                           f"{exc.motivo}. A comissão da operação foi calculada, mas a divergência de spread "
+                           f"não pôde ser avaliada.", [("SPREAD", Decimal("0.00"), n_op)], "R10")
 
         negativo = o.spread_brl < 0
         if divergente and (not negativo or spread_negativo_em_divergencias):
             id_div = id_divergencia("REMESSA", n_op)
             res.divergencias.append({
-                "id_saida": id_div, "cnpj": loj.cnpj14, "linha_negocio": "REMESSA", "ref_origem": n_op,
+                "id_saida": id_div, "cnpj": o.cnpj14, "linha_negocio": "REMESSA", "ref_origem": n_op,
                 "taxa_contratada_pct": fmt_pct(contratado_pp), "taxa_aplicada_pct": fmt_pct(aplicado_pp),
-                "diferenca_brl": diferenca,
+                "diferenca_brl": diferenca, "natureza": CONTRATO,
             })
             rastro.add(id_div, ARQUIVO_PONTE, n_op, diferenca, "SPREAD", fmt_pct(contratado_pp), "R10")
 
         if negativo:  # ✅ R5: fora da comissão e da nota; contestação
             valor = diferenca if divergente else o.spread_brl
-            _pendencia(res, rastro, TipoExcecao.CONTESTACAO_PONTE, n_op, valor,
-                       f"Spread realizado negativo (R$ {fmt(o.spread_brl)}, {o.observacao or 'sem observação'}); "
-                       f"fora da comissão e da nota. Valor = desvio contra o contrato "
-                       f"({fmt_pct(contratado_pp) if contratado_pp is not None else '?'}%). Contestar com a Ponte.",
-                       [("SPREAD", valor, n_op)], "R9")
+            contra = f"contra {fmt_pct(contratado_pp)}% contratado" if contratado_pp is not None else "sem contrato"
+            contestar[o.cnpj14].append(_ItemContestacao(
+                NEGATIVO, n_op, valor, "SPREAD", "R9",
+                f"{o.observacao or 'sem observação'}; fora da comissão e da nota; valor = desvio {contra}"))
             continue
 
         comissao = meia(o)
         regra = "R4" if divergente else "R1"
-        totais[loj.cnpj14] += comissao
-        res.linhas.append(LinhaRemessa(o, loj.cnpj14, comissao, regra))
-        rastro.add(id_comissao("REMESSA", loj.cnpj14, mes), ARQUIVO_PONTE, n_op, comissao, "SPREAD",
+        totais[o.cnpj14] += comissao
+        res.linhas.append(LinhaRemessa(o, o.cnpj14, comissao, regra))
+        rastro.add(id_comissao("REMESSA", o.cnpj14, mes), ARQUIVO_PONTE, n_op, comissao, "SPREAD",
                    fmt_pct(participacao * 100), regra)
-        if divergente:  # ✅ R3/R4/R9: comissão pelo realizado e pendência de contestação pelo valor cheio
-            _pendencia(res, rastro, TipoExcecao.CONTESTACAO_PONTE, n_op, diferenca,
-                       f"Spread aplicado {fmt_pct(aplicado_pp)}% contra {fmt_pct(contratado_pp)}% contratado. "
-                       f"O excesso entra na nota de setembro (realizado); contestar com a Ponte e ajustar no mês "
-                       f"em que ela devolver.", [("SPREAD", diferenca, n_op)], "R9")
+        if not resolvida:
+            nao_resolvidas[o.cnpj14].append((o, comissao))
+        if divergente:  # ✅ R3/R4/R9: comissão pelo realizado e contestação pelo valor cheio
+            contestar[o.cnpj14].append(_ItemContestacao(
+                EXCESSO, n_op, diferenca, "SPREAD", "R9",
+                f"aplicado x contratado {fmt_pct(contratado_pp)}%; o excesso entra na nota pelo realizado e "
+                f"o ajuste vem no mês em que a Ponte devolver"))
 
     for n_op, extras in sorted(duplicatas.items()):
         original = primeiras[n_op]
         igual = all((e.spread_brl, e.valor_me, e.cnpj14) == (original.spread_brl, original.valor_me, original.cnpj14)
                     for e in extras)
-        valor = sum((meia(e) for e in extras), Decimal("0"))
-        _pendencia(res, rastro, TipoExcecao.CONTESTACAO_PONTE, n_op, valor,
-                   f"Nº de operação duplicado no relatório da Ponte ({len(extras)} repetição(ões), "
-                   f"{'valores idênticos' if igual else 'valores diferentes'} da primeira). Conta uma vez; "
-                   f"comissão inflada de R$ {fmt(valor)} na lista para a Ponte corrigir o relatório.",
-                   [(f"DUPLICATA-L{e.linha_fisica}", meia(e), n_op) for e in extras], "R6")
+        for e in extras:
+            contestar[original.cnpj14].append(_ItemContestacao(
+                DUPLICATA, n_op, meia(e), f"DUPLICATA-L{e.linha_fisica}", "R6",
+                f"{'valores idênticos' if igual else 'valores diferentes'} da primeira; conta uma vez; "
+                f"valor = comissão inflada se o total da Ponte fosse aceito; Ponte deve corrigir o relatório"))
+
+    _contestacoes(res, rastro, mes, nomes, contestar)
 
     for cnpj, grupo in sorted(nao_resolvidas.items()):
-        valor = sum((meia(e) for e in grupo), Decimal("0"))
+        valor = sum((c for _, c in grupo), Decimal("0"))
         _pendencia(res, rastro, TipoExcecao.ENTIDADE_NAO_RESOLVIDA, cnpj, valor,
-                   f"CNPJ {cnpj} da Ponte não está no cadastro de lojistas ({len(grupo)} operação(ões)); "
-                   f"fora da comissão.", [("SPREAD", meia(e), e.n_operacao) for e in grupo], "R1")
+                   f"CNPJ {cnpj} ({nomes[cnpj]}) da Ponte não está no cadastro de lojistas ({len(grupo)} "
+                   f"operação(ões)). Comissão calculada e incluída na nota da Ponte; cadastrar o lojista. "
+                   f"Divergência de spread não avaliada (sem contrato).",
+                   [("SPREAD", c, o.n_operacao) for o, c in grupo], "R1")
 
     for cnpj14 in sorted(totais):
         res.comissoes.append({

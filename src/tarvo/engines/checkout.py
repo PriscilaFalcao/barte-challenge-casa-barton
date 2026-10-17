@@ -70,6 +70,36 @@ def _pendencia(res: ResultadoCheckout, rastro: Rastro, tipo: TipoExcecao, ref: s
         rastro.add(exc.id_saida, ARQUIVO_ORBE, t.id_transacao, t.valor_taxa)
 
 
+def _alerta_antecipacao(res: ResultadoCheckout, rastro: Rastro, ec: str, nome: str | None,
+                        txs: list[OrbeTx]) -> None:
+    """✅ Helena (P8): antecipação acima do que o lojista vendeu "não deveria acontecer"; alerta para ela e o
+    comercial, "ainda mais com a Atlas sem contrato". ⚠️ Só para lojista sem contrato: nos demais, antecipação
+    acima das vendas do mês é normal (antecipam vendas de meses anteriores, que não estão no arquivo).
+    Valor = antecipado líquido no mês (antecipações − reversões), com cada linha no rastro."""
+    antecip = [t for t in txs if t.tipo in ("ANTECIPACAO", "REVERSAO_ANTECIPACAO")]
+    if not antecip:
+        return
+    pico = None  # (dia, antecipado no dia, vendas líquidas até o dia)
+    for dia in sorted({t.data_movimento for t in antecip if t.tipo == "ANTECIPACAO"}):
+        no_dia = sum((t.valor_bruto for t in antecip if t.tipo == "ANTECIPACAO" and t.data_movimento == dia),
+                     Decimal("0"))
+        vendas = sum((t.valor_bruto for t in txs if t.tipo in ("VENDA", "ESTORNO") and t.data_movimento <= dia),
+                     Decimal("0"))
+        if no_dia > vendas and (pico is None or no_dia - vendas > pico[1] - pico[2]):
+            pico = (dia, no_dia, vendas)
+    liquido = sum((t.valor_bruto for t in antecip), Decimal("0"))
+    detalhe = (f" Em {pico[0].strftime('%d/%m')} antecipou R$ {fmt(pico[1])} com R$ {fmt(pico[2])} de vendas "
+               f"líquidas no mês até o dia." if pico else "")
+    exc = Excecao.nova(
+        TipoExcecao.ALERTA_ANTECIPACAO, ec, liquido,
+        f"{nome or 'Lojista'} (EC {ec}) sem contrato antecipou R$ {fmt(liquido)} líquidos no mês "
+        f"({len(antecip)} linha(s), reversões abatidas).{detalhe} Não há trava de antecipação; avisar a Helena "
+        f"e o comercial.")
+    res.excecoes.append(exc)
+    for t in sorted(antecip, key=lambda t: t.id_transacao):
+        rastro.add(exc.id_saida, ARQUIVO_ORBE, t.id_transacao, t.valor_bruto, "ANTECIPACAO", "", "P8")
+
+
 def calcular_checkout(txs: list[OrbeTx], registro: Registro, resolvedor: Resolvedor,
                       mes: str, rastro: Rastro, ledger: Ledger | None = None) -> ResultadoCheckout:
     res = ResultadoCheckout()
@@ -117,7 +147,11 @@ def calcular_checkout(txs: list[OrbeTx], registro: Registro, resolvedor: Resolve
         nome = registro.classificar(ec=ec).nome
         _pendencia(res, rastro, TipoExcecao.SEM_CONTRATO, ec, grupo,
                    f"{nome} (EC {ec}) sem contrato: comissão não calculada e sem nota até o comercial "
-                   f"informar a taxa. Valor = soma da taxa cobrada pela Orbe nas {len(grupo)} linhas.")
+                   f"informar a taxa. Valor = soma da taxa cobrada pela Orbe nas {len(grupo)} linhas (só dimensiona). "
+                   f"Quando o comercial confirmar, a taxa vale desde o início e estas linhas entram no fechamento "
+                   f"daquele mês: puxar do rastro deste mês.")
+    for ec, grupo in sorted(sem_contrato.items()):
+        _alerta_antecipacao(res, rastro, ec, registro.classificar(ec=ec).nome, grupo)
     for ec, grupo in sorted(nao_resolvidas.items()):
         _pendencia(res, rastro, TipoExcecao.ENTIDADE_NAO_RESOLVIDA, ec, grupo,
                    f"EC {ec} não está no cadastro de lojistas ({len(grupo)} linhas, "

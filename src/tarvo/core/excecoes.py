@@ -13,32 +13,38 @@ class TipoExcecao(str, Enum):
     CONTESTACAO_PONTE = "CONTESTACAO_PONTE"
     COMISSAO_NAO_POSITIVA = "COMISSAO_NAO_POSITIVA"
     SEM_CONTRATO = "SEM_CONTRATO"
-    CASA_DEVOLUCAO = "CASA_DEVOLUCAO"
+    DEVOLUCAO_LOJISTA = "DEVOLUCAO_LOJISTA"
+    ALERTA_ANTECIPACAO = "ALERTA_ANTECIPACAO"
     LANCAMENTO_SEM_ORIGEM = "LANCAMENTO_SEM_ORIGEM"
     REPASSE_ATIPICO = "REPASSE_ATIPICO"
     DEVOLUCAO_PIX = "DEVOLUCAO_PIX"
     ENTIDADE_NAO_RESOLVIDA = "ENTIDADE_NAO_RESOLVIDA"
     CONTRATO_AMBIGUO = "CONTRATO_AMBIGUO"
     CLASSIFICACAO_BAIXA_CONFIANCA = "CLASSIFICACAO_BAIXA_CONFIANCA"
-    CONFERIR_OUTUBRO = "CONFERIR_OUTUBRO"
+    CONFERIR_MES_SEGUINTE = "CONFERIR_MES_SEGUINTE"
     STATUS_PONTE_DESCONHECIDO = "STATUS_PONTE_DESCONHECIDO"
 
 
-# Tabela 7.8 do PRD. 🟡 V6: Diego em SEM_CONTRATO e Bia em CONTRATO_AMBIGUO ainda são premissas.
+HELENA = "Helena"
+COMERCIAL = "Diego"  # ✅ Casa Barton 11h01: "cadastro e contrato quem decide é o comercial"
+HELENA_E_COMERCIAL = "Helena e Diego"
+
+# Tabela 7.8 do PRD (✅ 17/10: cadastro e contrato com o comercial; a Bia mantém a planilha, mas não decide).
 QUEM_DECIDE_DEFAULT: dict[TipoExcecao, str] = {
-    TipoExcecao.DIVERGENCIA_ORBE: "Helena",
-    TipoExcecao.CONTESTACAO_PONTE: "Helena",
-    TipoExcecao.COMISSAO_NAO_POSITIVA: "Helena",
-    TipoExcecao.SEM_CONTRATO: "Diego",
-    TipoExcecao.CASA_DEVOLUCAO: "Helena",
-    TipoExcecao.LANCAMENTO_SEM_ORIGEM: "Helena",
-    TipoExcecao.REPASSE_ATIPICO: "Helena",
-    TipoExcecao.DEVOLUCAO_PIX: "Helena",
-    TipoExcecao.ENTIDADE_NAO_RESOLVIDA: "Helena",
-    TipoExcecao.CONTRATO_AMBIGUO: "Helena",
-    TipoExcecao.CLASSIFICACAO_BAIXA_CONFIANCA: "Helena",
-    TipoExcecao.CONFERIR_OUTUBRO: "Helena",
-    TipoExcecao.STATUS_PONTE_DESCONHECIDO: "Helena",
+    TipoExcecao.DIVERGENCIA_ORBE: HELENA,
+    TipoExcecao.CONTESTACAO_PONTE: HELENA,
+    TipoExcecao.COMISSAO_NAO_POSITIVA: HELENA,
+    TipoExcecao.SEM_CONTRATO: COMERCIAL,
+    TipoExcecao.DEVOLUCAO_LOJISTA: HELENA_E_COMERCIAL,  # ✅ "devolução ao lojista, pendência minha com o comercial"
+    TipoExcecao.ALERTA_ANTECIPACAO: HELENA_E_COMERCIAL,  # ✅ "quem precisa saber sou eu e o comercial"
+    TipoExcecao.LANCAMENTO_SEM_ORIGEM: HELENA,
+    TipoExcecao.REPASSE_ATIPICO: HELENA,
+    TipoExcecao.DEVOLUCAO_PIX: HELENA,
+    TipoExcecao.ENTIDADE_NAO_RESOLVIDA: COMERCIAL,
+    TipoExcecao.CONTRATO_AMBIGUO: COMERCIAL,
+    TipoExcecao.CLASSIFICACAO_BAIXA_CONFIANCA: HELENA,
+    TipoExcecao.CONFERIR_MES_SEGUINTE: HELENA,
+    TipoExcecao.STATUS_PONTE_DESCONHECIDO: HELENA,
 }
 
 

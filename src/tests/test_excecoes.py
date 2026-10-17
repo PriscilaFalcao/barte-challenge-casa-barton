@@ -13,6 +13,9 @@ def test_every_type_has_default_owner():
 def test_owner_defaults_follow_prd_table():
     assert QUEM_DECIDE_DEFAULT[TipoExcecao.DIVERGENCIA_ORBE] == "Helena"
     assert QUEM_DECIDE_DEFAULT[TipoExcecao.SEM_CONTRATO] == "Diego"
+    assert QUEM_DECIDE_DEFAULT[TipoExcecao.CONTRATO_AMBIGUO] == "Diego"  # ✅ cadastro e contrato: comercial
+    assert QUEM_DECIDE_DEFAULT[TipoExcecao.ENTIDADE_NAO_RESOLVIDA] == "Diego"
+    assert QUEM_DECIDE_DEFAULT[TipoExcecao.DEVOLUCAO_LOJISTA] == "Helena e Diego"
 
 
 def test_excecao_fills_owner_and_id():

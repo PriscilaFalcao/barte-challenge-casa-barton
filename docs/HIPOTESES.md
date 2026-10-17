@@ -90,12 +90,13 @@ Cada hipótese foi verificada duas vezes contra os dados. A coluna "veredito" di
 | C2 | Arredondamento comum para o centavo em cada linha (meio centavo para cima; −0,005 vira −0,01), depois soma. A Orbe trunca; a Tarvo não trunca. | ✅ | Fox AI 21h07 |
 | C3 | Estorno abate a comissão do mês do estorno, inclusive estorno de venda de agosto, pela taxa que valia na data da venda original. | ✅ | MN AI 20h04 |
 | C4 | Antecipação: bruto × taxa de antecipação contratada, na mesma comissão e na mesma nota. A reversão anula só a taxa da antecipação revertida (via `id_referencia`). | ✅ | MN AI 20h26 |
-| C5 | Faixa de parcelas: 1x = crédito à vista; 2–6x e 7–12x pelas colunas da planilha (`qtd_parcelas`). | ⚠️ | Leitura direta das colunas da planilha |
+| C5 | Faixa de parcelas: 1x = crédito à vista; 2–6x e 7–12x pelas colunas da planilha (`qtd_parcelas`). Acima de 12x não existe: se aparecer, é pendência. | ✅ / ⚠️ | Colunas da planilha; "não vendemos acima de 12x" (Casa Barton 11h01) |
 | C6 | Vigência da taxa: vale a data da venda (`data_movimento` da VENDA; `data_venda_original` do estorno). A Bridge muda o crédito à vista para 2,19% em vendas a partir de 15/09. | ✅ | MN AI 20h04 ("taxa que valia na data da venda") |
 | C7 | Mapeamento dos ECs: 1043300981 = Novo Horizonte (66564512000199); 1043396662 = Horizonte Viagens (78576234000179); 1038867654 = Kiwi (07752116000126). | ✅ | Fox AI 20h16 |
 | C8 | **Casa do Estudante:** taxa contratada = 0 (MDR e antecipação) de setembro a dezembro. A remessa segue normal. | ✅ | Lucca 20h36 |
-| C9 | **Atlas Idiomas** (EC 1076801732): sem contrato e não faturada até o comercial confirmar. | ✅ | Fox AI 20h16 |
+| C9 | **Atlas Idiomas** (EC 1076801732): sem contrato e não faturada até o comercial confirmar. Quando confirmar, a taxa vale desde 10/09 e setembro é faturado junto com o mês da confirmação: esse fechamento precisa puxar as 57 linhas de setembro. O repasse ao lojista não para: só o faturamento fica suspenso. | ✅ | Fox AI 20h16; MN AI (Atlas); Lucca 11h03 |
 | C10 | Rota Global: o contrato não mudou em 2026, então a cobrança acima da planilha é divergência. | ✅ | Lucca 20h36 |
+| C11 | **Alerta de antecipação:** antecipação acima do que o lojista vendeu "não deveria acontecer" e não tem trava; alerta para a Helena e o comercial. A Atlas antecipou R$ 179.592,82 em 15/09 com R$ 55.357,50 de vendas. ⚠️ Disparamos o alerta só para lojista **sem contrato**: nos demais, antecipar acima das vendas do mês é normal (antecipam vendas de agosto, fora do arquivo), e o critério geral daria 5 falsos alarmes em setembro (Oxford, Kiwi, Dublin, Canguru, Mundo Aberto). | ✅ / ⚠️ | Helena (P8, resposta ao Mateus) |
 
 ### 2.2 Divergências de checkout
 
@@ -103,11 +104,12 @@ Cada hipótese foi verificada duas vezes contra os dados. A coluna "veredito" di
 |---|---|---|---|
 | D1 | Divergência = taxa aplicada ≠ contratada. Valor = bruto × (aplicada − contratada), arredondado por linha. | ✅ | Fox AI 21h07 |
 | D2 | Diferença de centavo causada pela truncagem da Orbe não é divergência. A comparação é feita na **taxa** (2 casas, exata), não no valor em R$. | ✅ / ⚠️ | Fox AI 21h07. A forma de comparar é nossa. |
-| D3 | Devolução ao lojista e cobrança à Orbe são decisão da Helena, caso a caso. Cada divergência vira pendência dela. | ✅ | Fox AI 20h01 |
-| D4 | Estornos entram como divergência quando foram feitos a uma taxa diferente da contratada na data da venda original (por exemplo, estornos da Rota de vendas após 12/09). O sinal é negativo: a Orbe já devolveu parte do excesso. | ⚠️ | Consequência de C3 + D1 |
+| D3 | Devolução ao lojista e cobrança à Orbe são decisão da Helena, caso a caso. A Orbe é cobrada só pela diferença líquida: "a venda e o estorno se anulam". | ✅ | Fox AI 20h01; Helena (P2) |
+| D4 | Estornos entram como divergência quando foram feitos a uma taxa diferente da contratada na data da venda original (por exemplo, estornos da Rota de vendas após 12/09). O sinal é negativo: a Orbe já devolveu parte do excesso, e a pendência fica pelo líquido. | ✅ | C3 + D1; Helena (P2: "cobro da Orbe só o que sobrou de diferença líquida") |
 | D5 | **Atlas:** não geramos divergência. Sem taxa contratada, qualquer número seria alarme falso. Fica só como pendência. | ⚠️ | C9 |
 | D6 | **Atlas, valor da pendência `SEM_CONTRATO`:** `valor_brl` = soma da taxa cobrada pela Orbe nas 57 linhas do mês (R$ 7.876,05), com rastro linha a linha. É só para dimensionar o que está parado, não é valor a faturar nem comissão. A comissão não é calculada. Convenção nossa, não regra do financeiro. Vai junto com a V5 (PRD seção 12). Outros critérios possíveis: volume bruto, ou zero. Nenhum deles muda comissão, nota ou divergência. | ⚠️ | C9, D5 |
-| D7 | **Granularidade da pendência de divergência de checkout:** 1 pendência `DIVERGENCIA_ORBE` por divergência (210 em setembro), cada uma com 1 linha de rastro. Coerente com D3 ("cada divergência vira pendência dela") e com a rastreabilidade linha a linha, mas a escolha do nível de detalhe é nossa. Vai como sub-ponto da V6 (PRD seção 12). Alternativa: 1 por lojista, com as operações no motivo. Não muda comissão, nota nem divergência. | ⚠️ | D3 |
+| D7 | **Granularidade:** uma pendência `DIVERGENCIA_ORBE` por lojista (contraparte Orbe), pelo líquido, com cada transação no rastro e em `divergencias_taxa.csv`. Em setembro: Rota R$ 1.546,28 (87 linhas) e Bridge R$ 29,95 (5 linhas). Antes eram 210 pendências, uma por transação. | ✅ | Casa Barton 11h01: "uma pendência por contraparte e por lojista, com o detalhe das transações anexado" |
+| D8 | **Casa do Estudante:** a Orbe cobrou certo pela planilha, porque ninguém avisou da isenção. Não há o que cobrar da Orbe: é devolução ao lojista. As 118 linhas ficam em `divergencias_taxa.csv` com `natureza = ISENCAO_NAO_INFORMADA_ORBE`, e sai **uma** pendência `DEVOLUCAO_LOJISTA` de R$ 15.397,42 (Helena com o comercial), fora da cobrança à Orbe. ⚠️ Regra geral nossa: divergência cuja taxa contratada vem de um override (condição combinada fora da planilha) tem essa natureza. | ✅ / ⚠️ | Helena (P3, resposta ao Mateus); Fox AI 10h58 |
 
 ### 2.3 Remessa
 
@@ -122,11 +124,11 @@ Cada hipótese foi verificada duas vezes contra os dados. A coluna "veredito" di
 | R7 | O status "APROVADO C/ RESSALVA" não muda nada. | ✅ | MN AI 20h30 |
 | R8 | Competência = data de contratação. As 6 operações contratadas em 30/09 e liquidadas em 01/10 entram em setembro. | ✅ | MN AI 20h30 |
 | R9 | Nada foi contestado ainda e estamos no prazo. Não assumir desconto no repasse. Divergências e negativos ficam como pendência de contestação, com valor e operações. | ✅ | Lucca 21h56; Insper AI 22h04 |
-| R10 | Valor da divergência de remessa = Valor ME × PTAX × (`Spread %` aplicado − contratado), por operação, arredondado. | ⚠️ | Mesma forma que D1, proposta pela Fox AI sem objeção. A alternativa (`Spread R$` − contratado × ME × PTAX) dá R$ 0,03 a mais no total da Mundo Aberto. |
+| R10 | Valor da divergência de remessa = Valor ME × PTAX × (`Spread %` aplicado − contratado), por operação, arredondado. | ✅ escolha nossa | "São três centavos. Escolham um critério e escrevam qual" (Casa Barton 11h01). Mesma forma que D1, proposta pela Fox AI sem objeção. A alternativa (`Spread R$` − contratado × ME × PTAX) dá R$ 0,03 a mais no total da Mundo Aberto. |
 | R11 | Tolerância de remessa: só é divergência acima de **0,01 p.p.** | ⚠️ | O `Spread %` oscila ±0,0016 p.p. em todos os contratos (arredondamento da Ponte), e o desvio real da Mundo Aberto é ≈0,30 p.p. O corte separa os dois sem ambiguidade. A Helena aceitou critério nosso, desde que escrito (Fox AI 20h52). |
-| R12 | Spreads negativos **também** entram em `divergencias_taxa.csv`, pela diferença entre o spread contratado e o realizado (Σ R$ 3.565,98), além da pendência de contestação. | ⚠️ ❓ | A taxa aplicada é diferente da contratada (definição D1). Se não for o caso, basta remover as 4 linhas. |
-| R13 | **Sinal e valor nas pendências de contestação da Ponte (convenção nossa):** a divergência de remessa segue o sinal de D1 (aplicado − contratado). Os 4 spreads negativos dão Σ −R$ 3.565,98 (a magnitude é a conferida pela Lucca). O `valor_brl` da pendência `CONTESTACAO_PONTE` é o mesmo desvio (Mundo Aberto: +R$ 1.418,85 em 23 operações; negativos: −R$ 3.565,98; duplicata: a comissão inflada, R$ 410,94). Uma pendência por operação, como em D7. | ⚠️ | R3, R5, R6, R9 |
-| R14 | **Remessa, o que não é decidido pelo código:** operação com status fora de APROVADO / APROVADO C/ RESSALVA (`STATUS_PONTE_DESCONHECIDO`) e CNPJ que não está no cadastro (`ENTIDADE_NAO_RESOLVIDA`) ficam fora da comissão e viram pendência para a Helena. Sem contrato vigente para a data, a comissão é calculada (ela não depende do contrato) e só a divergência fica sem avaliação (`CONTRATO_AMBIGUO`). Hoje nenhum desses casos ocorre em setembro. | ⚠️ | P3 |
+| R12 | Spreads negativos **não** entram em `divergencias_taxa.csv`: "divergência é quando o lojista pagou diferente do contrato. No spread negativo o lojista não pagou a mais. O prejuízo é nosso com a Ponte". Ficam só como pendência de contestação. O parâmetro `spread_negativo_em_divergencias` religa a listagem, se um dia for pedido. | ✅ | Helena (resposta à MN AI sobre spread negativo) |
+| R13 | **Pendências de contestação da Ponte:** uma por lojista (contraparte Ponte), juntando o que houver: excesso de spread, spread negativo e duplicata, com cada operação no rastro e o subtotal por natureza no motivo. Sinal (convenção nossa): o de D1 (aplicado − contratado). Em setembro, 6 pendências: Mundo Aberto +R$ 1.418,85 (23 operações); Bagagem Livre R$ 410,94 (duplicata, comissão inflada); 4 lojistas com spread negativo, Σ −R$ 3.565,98. | ✅ / ⚠️ | Casa Barton 11h01; R3, R5, R6, R9 |
+| R14 | **Remessa, casos fora do padrão:** CNPJ que não está no cadastro entra na comissão e na nota (a Ponte paga e a nota tem que bater com o repasse), sem avaliação de divergência, e abre pendência de cadastro (`ENTIDADE_NAO_RESOLVIDA`) para o comercial (✅). Operação com status fora de APROVADO / APROVADO C/ RESSALVA (`STATUS_PONTE_DESCONHECIDO`) fica fora da comissão e vira pendência da Helena (⚠️). Sem contrato vigente para a data, a comissão é calculada e só a divergência fica sem avaliação (`CONTRATO_AMBIGUO`, comercial). Nenhum desses casos ocorre em setembro. | ✅ / ⚠️ | Desbravadores ("registrem como premissa"); P3 |
 
 ### 2.4 Notas fiscais
 
@@ -136,12 +138,14 @@ Cada hipótese foi verificada duas vezes contra os dados. A coluna "veredito" di
 | N2 | Comissão zero ou negativa não gera nota; vira pendência da Helena e não passa para o mês seguinte. | ✅ | MN AI 20h26 |
 | N3 | REMESSA: uma única nota, com a Ponte Câmbio S.A. (CNPJ 75374179000146) como tomadora, pelo total da nossa participação no mês. | ✅ | MN AI 20h26; e-mail da Ponte |
 | N4 | Discriminação: texto simples com o serviço e a competência. | ✅ | MN AI 20h26 |
-| N5 | Casa do Estudante: a comissão de checkout fica **negativa** (vendas a 0 e estorno TX88445133, de venda de 21/08, a 1,49% = −R$ 5,50). Sem nota de checkout, com pendência. A remessa da Casa entra normalmente na nota da Ponte. | ⚠️ | Consequência de C3 + C8 + N2 |
+| N5 | Casa do Estudante: a comissão de checkout fica **negativa** (vendas a 0 e estorno TX88445133, de venda de 21/08, a 1,49% = −R$ 5,50). Sem nota de checkout, com pendência. A remessa da Casa entra normalmente na nota da Ponte. | ✅ | "Em 21/08 a isenção ainda não valia" (Helena, P1) |
 | N6 | Atlas: sem nota (C9). | ✅ | |
 
 ### 2.5 Classificação dos extratos
 
-Regra geral (✅ Fox AI 21h08): `conta_codigo` é a **contrapartida** do movimento no banco. O que já estava registrado baixa a conta onde estava. Já estavam provisionados: a folha, os tributos de agosto e o repasse da Ponte de 04/09 (✅ Lucca 20h36). Tarifas, aluguel, cloud, assinaturas e serviços entram direto como despesa.
+Regra geral (✅ Fox AI 21h08): `conta_codigo` é a **contrapartida** do movimento no banco. O que já estava registrado baixa a conta onde estava. Já estavam provisionados: a folha, os tributos de agosto e o repasse da Ponte de 04/09 (✅ Lucca 20h36). Folha e impostos ficam provisionados **todo mês** (✅ Desbravadores), então a regra vale para qualquer competência. Tarifas, aluguel, cloud, assinaturas e serviços entram direto como despesa.
+
+A Helena **não valida conta a conta** (Casa Barton 11h01; Lucca 11h03): vale o critério dela, e as linhas ⚠️ abaixo são premissa nossa sob esse critério. As regras estão em `config/defaults.yaml` (`regras_lancamento`), na ordem em que são testadas.
 
 | Padrão da descrição | Conta | Status |
 |---|---|---|
@@ -164,25 +168,33 @@ Regra geral (✅ Fox AI 21h08): `conta_codigo` é a **contrapartida** do movimen
 | RENDIMENTO APLIC AUTOMATICA | 3.2.01 Rendimentos de aplicações | ⚠️ |
 | IOF S/ OPERACAO CREDITO | 4.3.01 IOF | ⚠️ (estranho na conta de câmbio, porque a conta garantida está no Aurora) |
 | PIX RECEBIDO 38686002000180 SEM IDENTIFICACAO (L50) | 1.1.09.002 Créditos não identificados + pendência | ✅ "não é receita" |
-| DEVOLUCAO PIX – MUNDO ABERTO (L65) | 2.1.01.001 (o repasse volta a ser devido) + pendência | ⚠️ ("repasse que voltou", ✅ Lucca 20h36) |
-| PIX RECEB PONTE AEREA R$ 18.240 (MRD2026090425) | 2.1.02.001 + pendência | ⚠️ ❓ |
+| DEVOLUCAO PIX – MUNDO ABERTO (L65) | 2.1.01.001 (o repasse volta a ser devido) + pendência do motivo | ✅ "as duas contas fazem sentido, escolham uma" (Desbravadores). Escolhemos 2.1.01.001 porque o PIX devolvido é o repasse que voltou (Lucca 20h36) e a obrigação com o lojista volta a existir; 2.1.01.002 é para crédito novo a lojista. |
+| PIX RECEB PONTE AEREA R$ 18.240 (MRD2026090425) | 2.1.02.001 + pendência para conferir a operação em outubro | ✅ "dinheiro de uma remessa que ainda não foi feita. A operação sai em outubro" |
+| PIX ENVIADO ATLAS IDIOMAS (L34 e L60) | 2.1.01.001, repasse normal; L34 com alerta `REPASSE_ATIPICO` | ✅ "o repasse não para" (Lucca 11h03); alerta é nosso (I9) |
+| Sem regra | conta provisória: crédito 1.1.09.002, débito 1.1.03.003; HUMANO, confiança 0 + pendência | ⚠️ |
 
-- **`metodo`/`confianca` (⚠️):**
-  - REGRA, com confiança 1,0, quando a descrição casa com um padrão inequívoco da tabela.
-  - IA só para descrições que nenhuma regra cobre, com confiança < 1.
-  - Abaixo de 0,8, ou quando a contrapartida depende de uma decisão (as três linhas com pendência), vira HUMANO e entra em `pendencias.csv`.
+- **`metodo`/`confianca` (⚠️, decisão do time em 17/10):**
+  - REGRA, com confiança 1,0, quando a descrição casa com um padrão da tabela. Vale também para L50 e L65: a conta já está validada no canal, e o que fica em aberto (o motivo do dinheiro) vai para `pendencias.csv`. Em setembro, os 184 lançamentos saem por REGRA.
+  - IA (B8) só para descrições que nenhuma regra cobre, com confiança < 1.
+  - Sem regra e sem IA, ou IA abaixo de 0,8: HUMANO, conta provisória e pendência.
+- **Conciliações determinísticas:**
+  - TED de liquidação à Ponte = Σ(Valor R$ + IOF) das operações contratadas no dia: **21 de 21** batem (📄).
+  - Transferências Aurora → Meridiano pareadas pelo valor: 3 de 4 têm par no mês; a de L92 vira conferência no mês seguinte (✅ cai em 01/10).
+  - PIX de lojista × operações da Ponte: **não bate** (📄, ver I8). Não usamos.
 - **Orbe × banco:** não conciliamos parcela a parcela (✅ Insper AI 22h09). Classificamos as TEDs e registramos a limitação.
 
-### 2.6 Pendências e quem decide (⚠️)
+### 2.6 Pendências e quem decide
 
 | Tipo | Quem decide |
 |---|---|
 | Divergência de taxa da Orbe (devolver ao lojista / cobrar a Orbe) | Helena (financeiro) |
 | Contestação com a Ponte (Mundo Aberto, spreads negativos, duplicata) | Helena (financeiro) |
-| Casa do Estudante (devolução do cobrado e saldo negativo) | Helena (financeiro), com Diego (comercial) |
-| Atlas (taxa e faturamento) | Diego (comercial) |
+| Casa do Estudante (devolução do cobrado e saldo negativo) | Helena (financeiro), com Diego (comercial) (✅) |
+| Atlas (taxa e faturamento) | Diego (comercial) (✅) |
+| Cadastro e contrato (lojista não identificado, vigência ambígua) | Diego (comercial) (✅ "a Bia mantém a planilha, mas não decide taxa") |
+| Alerta de antecipação de lojista sem contrato | Helena e Diego (✅) |
 | Crédito sem origem, devolução de PIX, PIX sem operação | Helena (financeiro) |
-| Conferência do TED da Ponte de 06/10 | Helena (financeiro) (✅ Lucca 21h56) |
+| Conferência do TED da Ponte de 06/10, do PIX de R$ 18.240 e da transferência de R$ 300 mil | Helena (financeiro) (✅ Lucca 21h56) |
 
 ---
 
@@ -197,7 +209,7 @@ Regra geral (✅ Fox AI 21h08): `conta_codigo` é a **contrapartida** do movimen
 | I5 | Mundo Aberto a 1,5% contra 1,2% | 23 operações (1,4991% a 1,5009%); ≈ R$ 1.418,85 cheio | Divergência + pendência de contestação |
 | I6 | PC-0926-0162 duplicada; rodapé e Resumo contam as duas | Linhas 76 e 77 do XLSX diferem só em "reprocessada"; o banco prova R$ 55.811,47 a menos | Conta uma vez + pendência |
 | I7 | 4 spreads negativos | PC-0926-0210, -0326, -0491, -0545 (Σ −R$ 1.834,05); nos 4 a observação é "Taxa travada" | R5 + R12 |
-| I8 | PIX de R$ 18.240 da Ponte Aérea sem operação | MRD2026090425 (17/09), memo sem acento. Nos outros 13 lojistas, os PIX batem exatamente com Σ(Valor R$ + IOF) | Pendência ❓ |
+| I8 | PIX de R$ 18.240 da Ponte Aérea sem operação | MRD2026090425 (17/09), memo sem acento. ✅ É adiantamento de uma remessa que sai em outubro. **Correção (📄, 17/10):** outros times afirmaram que os demais PIX do Meridiano "batem centavo a centavo" com Σ(Valor R$ + IOF) das remessas. Conferimos e não batem, nem por dia nem por janela até o próximo PIX (ex.: Rota recebeu R$ 668 mil em PIX contra R$ 141 mil de operações no mês). Só a TED de liquidação à Ponte bate por dia | 2.1.02.001 + conferência em outubro |
 | I9 | Repasse de R$ 112.220,15 à Atlas em 10/09 (Aurora L34) | No mesmo dia da primeira transação, com só R$ 1.247,52 de líquido na Orbe; 5 antecipações, 2 revertidas | Pendência ❓ (risco) |
 | I10 | Devolução de R$ 12.400 da Mundo Aberto (L65) | Não bate com nenhum dos PIX enviados (48.714,59 e 88.746,05) | Pendência |
 | I11 | Transferência de R$ 300 mil (L92) sem par no Meridiano | ✅ cai em 01/10 | 1.1.09.001; conferir em outubro |
@@ -208,14 +220,18 @@ Regra geral (✅ Fox AI 21h08): `conta_codigo` é a **contrapartida** do movimen
 
 ## 4. Perguntas que o nosso time fez ao financeiro
 
-Ainda **nenhuma pergunta enviada** pelo nosso time. As que vamos enviar, sobre o que nenhum outro time perguntou:
+Q1 a Q4 foram planejadas no checkpoint 1. As respostas vieram de perguntas parecidas de outros times no canal. Q5 a Q8 foram enviadas pelo nosso time (Casa Barton, 17/10 10h56).
 
 | # | Pergunta | Status | Premissa enquanto isso |
 |---|---|---|---|
-| Q1 | PIX de R$ 18.240 da Ponte Aérea no Meridiano (MRD2026090425, 17/09) sem operação na Ponte. É adiantamento de remessa futura, pagamento em duplicidade ou algo a devolver? | ❓ a enviar | 2.1.02.001 + pendência |
-| Q2 | PIX de R$ 112.220,15 à Atlas em 10/09, quando ela tinha R$ 1.247,52 de vendas líquidas. Foi intencional? Quem autorizou? | ❓ a enviar | Pendência para a Helena |
-| Q3 | Casa do Estudante: (a) o estorno TX88445133, de venda de 21/08, abate 1,49% e deixa a comissão negativa: confirma pendência sem nota? (b) os estornos de vendas de setembro (ex.: TX88446763) reduzem o valor a devolver? | ❓ a enviar | N5 e D4 |
-| Q4 | Spreads negativos: além da pendência de contestação, entram como divergência de taxa, pelo valor contratado contra o realizado? | ❓ a enviar | R12 |
+| Q1 | PIX de R$ 18.240 da Ponte Aérea no Meridiano (MRD2026090425, 17/09) sem operação na Ponte. É adiantamento de remessa futura, pagamento em duplicidade ou algo a devolver? | ✅ "remessa que ainda não foi feita; a operação sai em outubro" | 2.1.02.001 + conferência em outubro |
+| Q2 | PIX de R$ 112.220,15 à Atlas em 10/09, quando ela tinha R$ 1.247,52 de vendas líquidas. Foi intencional? Quem autorizou? | 🟡 parcial: "o repasse não para"; a Bia às vezes paga antes de a Orbe liquidar, pela conta garantida, sem limite escrito. Quem autorizou continua sem resposta | Repasse normal + `REPASSE_ATIPICO` |
+| Q3 | Casa do Estudante: (a) o estorno TX88445133, de venda de 21/08, abate 1,49% e deixa a comissão negativa: confirma pendência sem nota? (b) os estornos de vendas de setembro (ex.: TX88446763) reduzem o valor a devolver? | ✅ (a) "em 21/08 a isenção ainda não valia"; 🟡 (b) por analogia com P2 ("venda e estorno se anulam") | N5, D4, D8 |
+| Q4 | Spreads negativos: além da pendência de contestação, entram como divergência de taxa, pelo valor contratado contra o realizado? | ✅ não: "no spread negativo o lojista não pagou a mais" | R12 |
+| Q5 | Pendência de divergência da Orbe: uma por transação ou uma por lojista? Quem decide cadastro e contrato? | ✅ "uma por contraparte e por lojista, com o detalhe das transações"; "cadastro e contrato quem decide é o comercial" | D7, R13, 2.6 |
+| Q6 | Confirmam o mapeamento das contas ⚠️ (Orbe, PIX lojistas, remessas, CDB, rendimento, IOF, tarifa de câmbio, seguro)? | 🟡 "Conta por conta eu não valido": vale o critério (baixa o provisionado, o resto pela natureza) | 2.5 |
+| Q7 | Vendas em 13x ou mais têm taxa? | ✅ "não vendemos acima de 12x; se aparecer, é pendência" | C5 |
+| Q8 | Mundo Aberto: R$ 1.418,85 ou R$ 1.418,88? | ✅ "são três centavos, escolham e escrevam" | R10 |
 
 ---
 
@@ -256,4 +272,7 @@ Ainda **nenhuma pergunta enviada** pelo nosso time. As que vamos enviar, sobre o
 - **Orbe × banco:** não conciliamos a Orbe contra o banco, por falta da agenda de recebíveis (✅ fora do escopo deste fechamento).
 - **Estornos de agosto:** a taxa de estornos de vendas de agosto vem da planilha atual. Se a taxa de agosto fosse outra, a planilha não teria esse histórico (H4).
 - **Atlas:** fica fora de comissão, nota e divergências até haver contrato.
-- **Casamento por nome nos extratos:** quando necessário, usa o nome normalizado contra a lista fechada de lojistas da planilha, nunca correspondência aproximada aberta. O que não casar exatamente vai para pendência.
+- **Casamento por nome nos extratos:** não casamos nome de extrato com lojista (os nomes vêm truncados e sem CNPJ, H1). Consequência: `PIX ENVIADO <nome>` (Aurora) e `PIX RECEB <nome>` (Meridiano) são regras genéricas. Um PIX a um fornecedor novo, que não seja lojista, seria classificado como repasse. Os pagamentos a fornecedores conhecidos (Contabilidade Exata) têm regra própria, testada antes.
+- **Meridiano:** o OFX não traz saldo inicial, então a cadeia de saldos não é verificável (só o LEDGERBAL final).
+- **Alertas pontuais** (L34, R$ 18.240) vêm da configuração, valem só para setembro e falham se o extrato não casar. Não detectam casos novos em outubro.
+- **Atlas em outubro:** puxar as linhas de setembro quando a taxa for confirmada ainda não está implementado. Elas estão no rastro da pendência `SEM_CONTRATO`.

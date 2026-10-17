@@ -413,3 +413,62 @@ Checkpoint 2 · 16h00 · a reta final
 Centralizem suas dúvidas, aqui no canal, com `[Financeiro]` ou `[Logística]` e o nome do time, uma por thread. Queremos que todos tenham o mesmo contexto.
 
 — Organização
+
+
+
+Alex Chequer  [10h50]
+[financeiro] Fox AI: Casa do Estudante (118 transações, R$ 15.397,42, ex.: TX88410932 cobrada a 2,69% pela planilha, contrato 0%). Você pediu para deixar separado das divergências de contrato. Propomos: (a) uma pendência para você e o comercial em pendencias.csv, com o valor total a devolver ao lojista; e (b) as 118 linhas também em divergencias_taxa.csv (contratada 0%, aplicada 2,69%), identificadas como "isenção não informada à Orbe", para ter o detalhe por transação, sem entrar no total a cobrar da Orbe. Ou prefere que fiquem só na pendência, fora da lista de divergências?
+1 respostamanuel.freitas  [10h58]
+[Financeiro] Resposta para Fox AI (Casa do Estudante)
+Do jeito que vocês propuseram serve: uma pendência com o total e o detalhe por transação marcado. Só não pode entrar na cobrança da Orbe.
+— Helena, financeiro da Tarvo
+
+
+
+Turma do Barulho - Marcus Valente  [10h55]
+[financeiro] Turma do Barulho: os repasses próximos dos dias 10 e 24 incluem apenas valores já liquidados pela Orbe ou também valores ainda a receber, antecipados com a conta garantida do Aurora? Se ambos ocorrem, em quais situações vocês usam a conta garantida?
+1 respostamanuel.freitas  [10h59]
+[Financeiro] Resposta para Turma do Barulho (repasse)
+
+Pela regra, o repasse é do que a Orbe já liquidou. Na prática, quando um lojista pressiona, a Bia às vezes paga antes de a Orbe liquidar, e aí entra a conta garantida. Isso não está escrito em lugar nenhum e não tem limite. É mais uma coisa que depende de quem está fazendo.
+
+— Helena, financeiro da Tarvo
+
+
+
+
+Casa Barton - Priscila Falcão  [10h56]
+[Financeiro] [Casa Barton]
+
+Bom dia,
+
+
+complementando a anterior sobre divergencias e pendencias da Orbe: Se pendencia, preferem uma pendência de divergência da Orbe por transação ou uma por lojista? E quem deve decidir pendências de cadastro/contrato: Financeiro, Comercial ou responsável pela planilha?
+Confirmam este mapeamento: TED recebida da Orbe → 1.1.03.001; PIX enviado a lojista → 2.1.01.001; PIX recebido de lojista e TED enviada à Ponte para remessas → 2.1.02.001; CDB → 1.1.02.001; rendimento → 3.2.01; IOF de crédito → 4.3.01; tarifa de câmbio → 4.2.01; seguro → 4.2.05? Se algum estiver incorreto, qual conta devemos usar?
+Para vendas em 13 parcelas ou mais, existe uma taxa contratada aplicável? Se não houver faixa definida na planilha, devemos deixar a transação como pendência?
+Na divergência da Mundo Aberto, devemos usar o percentual de spread informado pela Ponte, que resulta em R$1.418,85, ou o valor em reais do spread informado no relatório, que resulta em R$1.418,88?
+(editado)
+1 respostamanuel.freitas  [11h01]
+[Financeiro] Resposta para Casa Barton
+
+Para mim, uma pendência por contraparte e por lojista, com o detalhe das transações anexado. É o que vira o rascunho de contestação que a MN AI propôs. Cadastro e contrato quem decide é o comercial. A Bia mantém a planilha, mas não decide taxa.
+Conta por conta eu não valido. O critério está no canal, na resposta para a Fox AI sobre o plano de contas: se já estava registrado, baixa a conta onde estava, e o resto vai para a natureza.
+A gente não vende acima de 12x. Se aparecer, é pendência.
+São três centavos. Escolham um critério e escrevam qual.
+— Helena, financeiro da Tarvo
+
+
+
+Lucca Landeiro - Lucca Landeiro  [11h01]
+[Financeiro] Lucca Landeiro: para confirmar as contas dos fluxos do dia a dia, que são o maior volume dos lançamentos:
+- PIX enviado ao lojista (repasse) → 2.1.01.001 Repasses a lojistas a pagar
+- TED recebida da Orbe → 1.1.03.001 Recebíveis de adquirente - Orbe
+- PIX recebido do lojista para remessa → 2.1.02.001 Recursos de lojistas para remessas a liquidar
+- TED enviada à Ponte (liquidação) → 2.1.02.001
+- Transferência entre Aurora e Meridiano → 1.1.09.001
+- Repasses à Atlas: lancei como repasse normal, porque "não faturar" não suspende o repasse. Está certo?
+É assim que vocês lançam?1 respostamanuel.freitas  [11h03]
+[Financeiro] Resposta para Lucca Landeiro
+Conta por conta eu não valido. Respondi isso para a Casa Barton agora há pouco, e o critério está na resposta para a Fox AI sobre o plano de contas.
+Sobre a Atlas: o repasse não para. O dinheiro é do lojista, e o que fica suspenso é só o faturamento da nossa taxa.
+— Helena, financeiro da Tarvo

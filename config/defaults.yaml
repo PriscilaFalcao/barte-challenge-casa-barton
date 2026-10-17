@@ -23,3 +23,87 @@ overrides_taxa:
     fim: 2026-12-31
     regra_id: C8
     fonte: "Lucca, Slack 16/10 20h36: tarifa zero (MDR e antecipação) de set a dez"
+
+# ---------------------------------------------------------------------------------------------------------
+# Classificação dos extratos (PRD 7.7). Regra geral ✅ (Fox AI 21h08): conta_codigo = contrapartida do
+# movimento. O que já estava registrado baixa a conta onde estava (folha e tributos do mês anterior, ✅
+# "sempre provisionados"; repasse de comissão da Ponte). O resto vai pela natureza (✅ Casa Barton 11h01:
+# a Helena não valida conta a conta; ⚠️ = premissa nossa sob esse critério).
+#
+# `padrao` é regex sobre a descrição normalizada (minúscula, sem acento, espaços colapsados).
+# A PRIMEIRA regra que casa vale: regras específicas vêm antes das genéricas do mesmo banco.
+# `sinal`: credito | debito (opcional). `pendencia`: abre pendência além de classificar.
+# Placeholders do motivo: {data} {valor} {descricao} {ref}.
+regras_lancamento:
+  # --- Aurora (conta principal) ---
+  - {id: AUR-ORBE, banco: AURORA, padrao: '^ted recebida .*orbe adquirencia', sinal: credito, conta: 1.1.03.001, status: "⚠️"}
+  - {id: AUR-TRANSF-MER, banco: AURORA, padrao: '^transf entre contas p/ bco meridiano', sinal: debito, conta: 1.1.09.001, status: "⚠️"}
+  - {id: AUR-FOLHA, banco: AURORA, padrao: '^pagto salarios', sinal: debito, conta: 2.1.04.001, status: "✅ provisionado"}
+  - {id: AUR-INSS, banco: AURORA, padrao: '^gps inss', sinal: debito, conta: 2.1.04.002, status: "✅ provisionado"}
+  - {id: AUR-FGTS, banco: AURORA, padrao: '^grf fgts', sinal: debito, conta: 2.1.04.003, status: "✅ provisionado"}
+  - {id: AUR-ISS, banco: AURORA, padrao: '^pagto iss', sinal: debito, conta: 2.1.03.003, status: "✅ provisionado"}
+  - {id: AUR-IRRF, banco: AURORA, padrao: '^debito darf 0561', sinal: debito, conta: 2.1.03.004, status: "✅ provisionado"}
+  - {id: AUR-PIS, banco: AURORA, padrao: '^debito darf 8109', sinal: debito, conta: 2.1.03.001, status: "✅ provisionado"}
+  - {id: AUR-COFINS, banco: AURORA, padrao: '^debito darf 2172', sinal: debito, conta: 2.1.03.002, status: "✅ provisionado"}
+  - {id: AUR-CONDOMINIO, banco: AURORA, padrao: '^boleto condominio', sinal: debito, conta: 4.2.02, status: "✅ despesa direta"}
+  - {id: AUR-AWS, banco: AURORA, padrao: '^deb aut amazon web services', sinal: debito, conta: 4.2.03, status: "✅ despesa direta"}
+  - {id: AUR-GOOGLE, banco: AURORA, padrao: '^cartao pj - google workspace', sinal: debito, conta: 4.2.04, status: "✅ despesa direta"}
+  - {id: AUR-CONTABIL, banco: AURORA, padrao: '^pix enviado contabilidade exata', sinal: debito, conta: 4.2.06, status: "✅ despesa direta"}
+  - {id: AUR-TARIFA, banco: AURORA, padrao: '^tar ', sinal: debito, conta: 4.2.01, status: "✅ despesa direta"}
+  - id: AUR-PIX-SEM-ID
+    banco: AURORA
+    padrao: '^pix recebido .*sem identificacao'
+    sinal: credito
+    conta: 1.1.09.002
+    status: "✅ não é receita até identificar (Lucca 20h36)"
+    pendencia:
+      tipo: LANCAMENTO_SEM_ORIGEM
+      motivo: "PIX de R$ {valor} recebido em {data} sem identificação do pagador ({descricao}). Não é receita até alguém identificar: lançado em Créditos não identificados. Identificar o pagador."
+  - id: AUR-DEVOLUCAO-PIX
+    banco: AURORA
+    padrao: '^devolucao pix'
+    sinal: credito
+    conta: 2.1.01.001
+    status: "✅ repasse que voltou (Lucca 20h36); conta escolhida entre 2.1.01.001 e 2.1.01.002 (Desbravadores)"
+    pendencia:
+      tipo: DEVOLUCAO_PIX
+      motivo: "Devolução de PIX de repasse de R$ {valor} em {data} ({descricao}): o repasse volta a ser devido ao lojista (2.1.01.001). Motivo ainda desconhecido. Confirmar o motivo e quando repagar."
+  # Genérica: fica depois das saídas por PIX específicas (contabilidade). ✅ Repasse à Atlas segue normal (Lucca 11h01).
+  - {id: AUR-REPASSE, banco: AURORA, padrao: '^pix enviado ', sinal: debito, conta: 2.1.01.001, status: "⚠️"}
+
+  # --- Meridiano (conta de câmbio) ---
+  - {id: MER-PIX-LOJISTA, banco: MERIDIANO, padrao: '^pix receb ', sinal: credito, conta: 2.1.02.001, status: "⚠️"}
+  - {id: MER-TED-PONTE, banco: MERIDIANO, padrao: '^ted enviada ponte cambio .*liq operacoes', sinal: debito, conta: 2.1.02.001, status: "⚠️ conciliada com as operações do dia"}
+  - {id: MER-REPASSE-PONTE, banco: MERIDIANO, padrao: '^ted receb ponte cambio .*repasse comissao', sinal: credito, conta: 1.1.03.002, status: "✅ provisionado (Lucca 20h36)"}
+  - {id: MER-TED-TARVO, banco: MERIDIANO, padrao: '^ted recebida tarvo .*mesma titularidade', sinal: credito, conta: 1.1.09.001, status: "⚠️"}
+  - {id: MER-CDB, banco: MERIDIANO, padrao: '^(aplicacao automatica|resgate automatico) cdb', conta: 1.1.02.001, status: "⚠️"}
+  - {id: MER-RENDIMENTO, banco: MERIDIANO, padrao: '^rendimento aplic', sinal: credito, conta: 3.2.01, status: "⚠️"}
+  - {id: MER-IOF, banco: MERIDIANO, padrao: '^iof ', sinal: debito, conta: 4.3.01, status: "⚠️"}
+  - {id: MER-TARIFA, banco: MERIDIANO, padrao: '^tarifa ', sinal: debito, conta: 4.2.01, status: "✅ despesa direta"}
+  - {id: MER-SEGURO, banco: MERIDIANO, padrao: '^seguro ', sinal: debito, conta: 4.2.05, status: "✅ despesa direta"}
+
+# Lançamento sem regra: conta transitória provisória, metodo HUMANO, confiança 0 e pendência (PRD 8.5).
+# ⚠️ Crédito vai para Créditos não identificados (mesmo critério da Helena para o PIX sem identificação);
+# débito vai para Adiantamentos diversos (saída a apurar). No B8, o Classificador entra antes deste passo.
+conta_provisoria:
+  credito: 1.1.09.002
+  debito: 1.1.03.003
+
+# Alertas sobre um lançamento específico, que nenhuma regra genérica detecta. Só valem no `mes` indicado,
+# e o lançamento tem que casar em banco, ref, data e valor: se não casar, a execução falha (config errada).
+# Não mudam a conta: só abrem a pendência.
+alertas_lancamento:
+  - mes: "2026-09"
+    banco: AURORA
+    ref: L34
+    data: 2026-09-10
+    valor: "-112220.15"
+    tipo: REPASSE_ATIPICO
+    motivo: "PIX de R$ 112.220,15 à Atlas Idiomas em 10/09, primeiro dia de operação dela, com R$ 1.247,52 de líquido na Orbe até a data. A Atlas não tem contrato. Pela regra o repasse é do que a Orbe já liquidou; na prática há pagamento antecipado pela conta garantida, sem limite escrito (Helena 10h59). Confirmar quem autorizou. Ver também o alerta de antecipação da Atlas."
+  - mes: "2026-09"
+    banco: MERIDIANO
+    ref: MRD2026090425
+    data: 2026-09-17
+    valor: "18240.00"
+    tipo: CONFERIR_MES_SEGUINTE
+    motivo: "PIX de R$ 18.240,00 da Ponte Aérea Estudantil sem operação na Ponte em setembro: é dinheiro de uma remessa que sai em outubro (Helena, resposta ao Mateus). Fica em Recursos de lojistas para remessas; conferir a operação no relatório da Ponte de outubro."

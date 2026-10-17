@@ -35,7 +35,8 @@ def test_i_r1_holds_for_comissoes_and_pendencias(corrida):
 
 def test_every_orbe_line_of_the_month_is_in_the_rastro_exactly_once(corrida):
     _, rastro, txs = corrida
-    cont = collections.Counter(l.ref_origem for l in rastro.linhas())
+    # O alerta de antecipação reaproveita linhas que já estão na pendência SEM_CONTRATO.
+    cont = collections.Counter(l.ref_origem for l in rastro.linhas() if not l.id_saida.startswith("PEN-ALERTA"))
     assert set(cont) == {t.id_transacao for t in txs} and set(cont.values()) == {1}
 
 
@@ -48,7 +49,7 @@ def test_casa_commission_is_minus_5_50_the_august_estorno(corrida):
 def test_atlas_is_out_of_commissions_and_is_a_pending_for_diego(corrida):
     res, rastro, _ = corrida
     assert all(c["cnpj"] != "39566044000119" and "Atlas" not in c["lojista"] for c in res.comissoes)
-    (e,) = res.excecoes
+    (e,) = [e for e in res.excecoes if e.tipo == TipoExcecao.SEM_CONTRATO]
     assert (e.tipo, e.ref_origem, e.quem_decide) == (TipoExcecao.SEM_CONTRATO, "1076801732", "Diego")
     assert len([l for l in rastro.linhas() if l.id_saida == e.id_saida]) == 57
     assert e.valor_brl == D("7876.05")
@@ -91,3 +92,12 @@ def test_regression_totals(corrida):
     res, _, _ = corrida
     assert len(res.comissoes) == 21
     assert sum(c["comissao_brl"] for c in res.comissoes) == D("207039.73")
+
+
+def test_atlas_anticipation_is_an_alert_for_helena_and_comercial(corrida):
+    """✅ P8: "Atlas antecipou R$ 179.592,82 em 15/09 e, até essa data, tinha R$ 55.357,50 em vendas"."""
+    res, rastro, _ = corrida
+    (e,) = [e for e in res.excecoes if e.tipo == TipoExcecao.ALERTA_ANTECIPACAO]
+    assert (e.ref_origem, e.quem_decide, e.valor_brl) == ("1076801732", "Helena e Diego", D("127230.96"))
+    assert "179592.82" in e.motivo and "55357.50" in e.motivo
+    assert rastro.soma(e.id_saida) == e.valor_brl

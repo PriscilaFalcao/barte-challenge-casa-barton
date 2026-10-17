@@ -61,8 +61,8 @@ def test_duplicate_counts_once_and_goes_to_ponte_list():
     res, r = _rodar([a, b])
     assert res.comissoes[0]["comissao_brl"] == D("410.94")
     (e,) = res.excecoes
-    assert (e.tipo, e.ref_origem, e.valor_brl, e.quem_decide) == (TipoExcecao.CONTESTACAO_PONTE, "PC-0162", D("410.94"), "Helena")
-    assert r.soma(e.id_saida) == D("410.94") and "duplicad" in e.motivo
+    assert (e.tipo, e.ref_origem, e.valor_brl, e.quem_decide) == (TipoExcecao.CONTESTACAO_PONTE, f"{CNPJ}-202609", D("410.94"), "Helena")
+    assert r.soma(e.id_saida) == D("410.94") and "duplicada" in e.motivo and "PC-0162" in e.motivo
     assert len([l for l in r.linhas() if l.id_saida.startswith("COM-REM")]) == 1
 
 
@@ -74,23 +74,25 @@ def test_duplicate_with_different_values_says_so():
     assert "valores diferentes" in res.excecoes[0].motivo
 
 
-def test_negative_spread_is_out_of_commission_with_contestation_and_divergence():
+def test_negative_spread_is_out_of_commission_and_only_a_contestation():
+    """✅ V4: o lojista não pagou a mais, então não é divergência; é contestação pelo desvio contra o contrato."""
     neg = op("PC-N", me="1000.00", ptax="5.0000", spread_brl="-77.62", spread_pct="-0.015523",
              obs="Taxa travada no pedido (D-1)")
     res, r = _rodar([op("PC-1", spread_brl="100.00"), neg])
     assert res.comissoes[0]["comissao_brl"] == D("50.00")
-    pend = next(e for e in res.excecoes if e.ref_origem == "PC-N")
-    assert (pend.tipo, pend.valor_brl) == (TipoExcecao.CONTESTACAO_PONTE, D("-152.62"))
+    (pend,) = res.excecoes
+    assert (pend.tipo, pend.ref_origem, pend.valor_brl) == (TipoExcecao.CONTESTACAO_PONTE, f"{CNPJ}-202609", D("-152.62"))
+    assert res.divergencias == [] and r.soma(pend.id_saida) == D("-152.62")
+    assert "Spread negativo" in pend.motivo and "PC-N" in pend.motivo
+
+
+def test_negative_spread_divergence_can_be_switched_on():
+    neg = op("PC-N", me="1000.00", ptax="5.0000", spread_brl="-77.62", spread_pct="-0.015523")
+    res, _ = _rodar([neg], spread_negativo_em_divergencias=True)
     (d,) = res.divergencias
     assert (d["id_saida"], d["diferenca_brl"], d["taxa_contratada_pct"], d["taxa_aplicada_pct"]) == (
         "DIV-REM-PC-N", D("-152.62"), "1.50", "-1.5523")
-    assert r.soma(pend.id_saida) == D("-152.62")
-
-
-def test_negative_spread_divergence_can_be_switched_off_for_v4():
-    neg = op("PC-N", spread_brl="-77.62", spread_pct="-0.015523")
-    res, _ = _rodar([neg], spread_negativo_em_divergencias=False)
-    assert res.divergencias == [] and res.excecoes[0].ref_origem == "PC-N" and res.comissoes == []
+    assert res.comissoes == []
 
 
 def test_mundo_aberto_excess_is_commissioned_and_diverges_by_full_value():
@@ -101,7 +103,8 @@ def test_mundo_aberto_excess_is_commissioned_and_diverges_by_full_value():
     (d,) = res.divergencias
     assert d["diferenca_brl"] == D("15.00") and (d["taxa_contratada_pct"], d["taxa_aplicada_pct"]) == ("1.20", "1.50")
     (e,) = res.excecoes
-    assert (e.tipo, e.ref_origem, e.valor_brl) == (TipoExcecao.CONTESTACAO_PONTE, "PC-M", D("15.00"))
+    assert (e.tipo, e.ref_origem, e.valor_brl) == (TipoExcecao.CONTESTACAO_PONTE, f"{CNPJ}-202609", D("15.00"))
+    assert d["natureza"] == "DIVERGENCIA_CONTRATO"
     assert next(l for l in r.linhas() if l.id_saida.startswith("COM-REM")).regra_id == "R4"
 
 
@@ -132,12 +135,16 @@ def test_missing_contract_keeps_commission_and_flags_the_operation():
     assert r.soma(e.id_saida) == D("0.00")
 
 
-def test_unresolved_cnpj_is_pending_and_not_commissioned():
-    res, r = _rodar([op("PC-1", cnpj="99999999000199", spread_brl="100.00")])
-    assert res.comissoes == []
+def test_unresolved_cnpj_is_commissioned_and_pending_for_comercial():
+    """✅ Desbravadores: a Ponte paga, então a comissão e a nota contam; cadastro vira pendência do comercial."""
+    res, r = _rodar([op("PC-1", cnpj="99999999000199", spread_brl="100.00", spread_pct="0.03")])
+    (c,) = res.comissoes
+    assert (c["cnpj"], c["lojista"], c["comissao_brl"]) == ("99999999000199", "CLIENTE", D("50.00"))
+    assert res.divergencias == []  # sem contrato, a divergência não é avaliada
     (e,) = res.excecoes
-    assert (e.tipo, e.ref_origem, e.valor_brl) == (TipoExcecao.ENTIDADE_NAO_RESOLVIDA, "99999999000199", D("50.00"))
-    assert r.soma(e.id_saida) == D("50.00")
+    assert (e.tipo, e.ref_origem, e.valor_brl, e.quem_decide) == (
+        TipoExcecao.ENTIDADE_NAO_RESOLVIDA, "99999999000199", D("50.00"), "Diego")
+    assert r.soma(e.id_saida) == D("50.00") and r.soma(c["id_saida"]) == D("50.00")
 
 
 def test_competencia_is_contratacao_date():
@@ -161,15 +168,15 @@ def test_order_independent_and_invariants_hold():
     validar_i_d1(a.divergencias)
 
 
-def test_duplicated_and_divergent_operation_is_one_merged_pending():
+def test_everything_to_contest_for_one_merchant_is_one_pending():
     c = [contrato(spread="1.2")]
     a = op("PC-M", spread_brl="75.00", spread_pct="0.015", linha=6)
     b = op("PC-M", spread_brl="75.00", spread_pct="0.015", obs="reprocessada", linha=7)
     res, r = _rodar([a, b], c)
-    (e,) = res.excecoes  # um só id_saida, sem colisão
-    assert (e.tipo, e.ref_origem) == (TipoExcecao.CONTESTACAO_PONTE, "PC-M")
+    (e,) = res.excecoes
+    assert (e.tipo, e.ref_origem) == (TipoExcecao.CONTESTACAO_PONTE, f"{CNPJ}-202609")
     assert e.valor_brl == D("15.00") + D("37.50")  # excesso + comissão inflada da repetição
-    assert "duplicado" in e.motivo and "Spread aplicado" in e.motivo
+    assert "duplicada" in e.motivo and "Excesso de spread" in e.motivo
     assert r.soma(e.id_saida) == e.valor_brl
     assert res.comissoes[0]["comissao_brl"] == D("37.50")
 
@@ -180,20 +187,20 @@ def test_duplicated_negative_operation_is_one_merged_pending():
     res, r = _rodar([a, b])
     (e,) = res.excecoes
     assert e.valor_brl == D("-152.62") + D("-38.81") and r.soma(e.id_saida) == e.valor_brl
-    assert "negativo" in e.motivo and "duplicado" in e.motivo
+    assert "negativo" in e.motivo and "duplicada" in e.motivo
 
 
-def test_pending_ids_are_always_unique_even_with_many_overlaps():
-    c = [contrato(spread="1.2")]
+def test_one_contestation_per_merchant_even_with_many_overlaps():
+    cnpjs = [f"{i:02d}111111000111" for i in range(3)]
+    c = [contrato(cnpj=x, ec=f"10000000{i:02d}", spread="1.2", nome=f"Loja {i}") for i, x in enumerate(cnpjs)]
     ops = []
     for i in range(10):
-        n = f"PC-{i}"
-        pct = "-0.0155" if i % 3 == 0 else "0.015"
-        ops += [op(n, spread_brl="75.00" if pct != "-0.0155" else "-77.00", spread_pct=pct, linha=2 * i + 6),
-                op(n, spread_brl="75.00" if pct != "-0.0155" else "-77.00", spread_pct=pct, linha=2 * i + 7)]
+        n, cnpj = f"PC-{i}", cnpjs[i % 3]
+        neg = i % 4 == 0
+        kw = dict(cnpj=cnpj, spread_brl="-77.00" if neg else "75.00", spread_pct="-0.0155" if neg else "0.015")
+        ops += [op(n, linha=2 * i + 6, **kw), op(n, linha=2 * i + 7, **kw)]
     res, r = _rodar(ops, c)
-    ids = [e.id_saida for e in res.excecoes]
-    assert len(ids) == len(set(ids)) == 10
+    assert sorted(e.ref_origem for e in res.excecoes) == sorted(f"{x}-202609" for x in cnpjs)
     for e in res.excecoes:
         assert r.soma(e.id_saida) == e.valor_brl
 

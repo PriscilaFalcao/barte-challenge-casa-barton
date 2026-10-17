@@ -48,6 +48,8 @@ class OpPonte:
     status: str
     observacao: str | None
     linha_fisica: int
+    valor_brl: Decimal | None = None  # Valor R$ e IOF R$: só para conciliar a TED da Ponte no Meridiano (B6)
+    iof: Decimal | None = None
 
     @property
     def ref_origem(self) -> str:
@@ -58,6 +60,10 @@ def _dec(v, onde: str) -> Decimal:
     if v is None or isinstance(v, bool):
         raise LayoutError(f"Ponte: {onde}: valor numérico ausente")
     return Decimal(str(v))
+
+
+def _dec_opcional(v, onde: str) -> Decimal | None:
+    return None if v in (None, "") else _dec(v, onde)
 
 
 def _data(v, onde: str) -> date:
@@ -128,5 +134,7 @@ def ler_ponte(path: Path, ledger: Ledger | None = None) -> list[OpPonte]:
             status=str(cel(linha, "status") or "").strip(),
             observacao=str(obs).strip() if obs not in (None, "") else None,
             linha_fisica=i,
+            valor_brl=_dec_opcional(cel(linha, "valor_brl"), onde),
+            iof=_dec_opcional(cel(linha, "iof"), onde),
         ))
     return ops

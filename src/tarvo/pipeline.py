@@ -1,4 +1,4 @@
-"""Fechamento do mês: checkout, remessa, divergências e notas. Classificação dos extratos entra no B6."""
+"""Fechamento do mês: checkout, remessa, divergências, notas e classificação dos extratos."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -8,20 +8,25 @@ from .config import carregar_defaults
 from .contracts.resolver import Resolvedor
 from .core.competencia import no_mes
 from .core.ledger import Ledger
+from .core.money import fmt
 from .core.rastro import Rastro
+from .engines.bancos import classificar_lancamentos
 from .engines.checkout import calcular_checkout
 from .engines.divergencias import calcular_divergencias
 from .engines.notas import calcular_notas
 from .engines.remessa import calcular_remessa
 from .identity.registro import Registro
+from .ingest.aurora import ler_aurora
 from .ingest.erros import LayoutError
+from .ingest.meridiano import ler_meridiano
+from .ingest.plano_contas import ler_plano_contas
 from .ingest.orbe import ARQUIVO as ARQUIVO_ORBE
 from .ingest.orbe import ler_orbe
 from .ingest.ponte import ARQUIVO as ARQUIVO_PONTE
 from .ingest.ponte import ler_ponte
 from .ingest.taxas import ARQUIVO as ARQUIVO_TAXAS
 from .ingest.taxas import ler_taxas
-from .output.validators import validar_i_d1, validar_i_n1, validar_i_r1, validar_i_r3
+from .output.validators import validar_i_c1, validar_i_d1, validar_i_n1, validar_i_r1, validar_i_r3
 from .output.writers import escrever_csv, escrever_rastro
 
 
@@ -31,6 +36,7 @@ class ResultadoFechamento:
     divergencias: list[dict]
     excecoes: list
     notas: list[dict]
+    lancamentos: list[dict]
 
 
 def _arquivo(dados: Path, padrao: str) -> Path:
@@ -56,10 +62,14 @@ def fechar(mes: str, dados: Path, saida: Path) -> ResultadoFechamento:
     cfg = carregar_defaults()
     ledger = Ledger()
     arq_taxas, arq_orbe, arq_ponte = _arquivo(dados, "02_*.xlsx"), _arquivo(dados, "01_*.csv"), _arquivo(dados, "03_*.eml")
+    arq_plano, arq_aurora, arq_meridiano = _arquivo(dados, "04_*.csv"), _arquivo(dados, "05a_*.csv"), _arquivo(dados, "05b_*.ofx")
     contratos, excecoes_taxas = ler_taxas(arq_taxas, ledger)
     registro = Registro.construir(contratos, cfg.ecs_extra, cfg.sem_contrato, cfg.aliases)
     txs = ler_orbe(arq_orbe)
     ops = ler_ponte(arq_ponte, ledger)
+    plano = ler_plano_contas(arq_plano)
+    aurora = ler_aurora(arq_aurora, ledger)
+    meridiano = ler_meridiano(arq_meridiano)
 
     txs_mes = [t for t in txs if no_mes(t.data_movimento, mes)]
     ops_mes = [o for o in ops if no_mes(o.data_contratacao, mes)]
@@ -68,13 +78,15 @@ def fechar(mes: str, dados: Path, saida: Path) -> ResultadoFechamento:
     rastro = Rastro()
     resolvedor = Resolvedor(contratos, cfg.overrides)
     res = calcular_checkout(txs, registro, resolvedor, mes, rastro, ledger)
-    div = calcular_divergencias(res.linhas, rastro)
+    div = calcular_divergencias(res.linhas, rastro, mes, {c["cnpj"]: c["lojista"] for c in res.comissoes})
     rem = calcular_remessa(ops, registro, resolvedor, mes, rastro, ledger=ledger)
     for e in excecoes_taxas:  # exceção de leitura da planilha: a linha da planilha é a origem
         rastro.add(e.id_saida, ARQUIVO_TAXAS, e.ref_origem, e.valor_brl)
     comissoes = res.comissoes + rem.comissoes
     notas = calcular_notas(comissoes, rastro, mes)
-    excecoes = excecoes_taxas + res.excecoes + div.excecoes + rem.excecoes + notas.excecoes
+    ban = classificar_lancamentos(aurora.lancamentos + meridiano.lancamentos, plano, cfg.regras_lancamento,
+                                  cfg.conta_provisoria, cfg.alertas_lancamento, ops, mes, rastro, ledger)
+    excecoes = excecoes_taxas + res.excecoes + div.excecoes + rem.excecoes + notas.excecoes + ban.excecoes
     pendencias = [
         {"id_saida": e.id_saida, "tipo": e.tipo.value, "ref_origem": e.ref_origem,
          "valor_brl": e.valor_brl, "motivo": e.motivo, "quem_decide": e.quem_decide}
@@ -84,34 +96,50 @@ def fechar(mes: str, dados: Path, saida: Path) -> ResultadoFechamento:
 
     # Valida antes de escrever: falha de invariante não deixa saída parcial.
     validar_i_r1({"comissoes_por_lojista": comissoes, "divergencias_taxa": divergencias,
-                  "notas_a_emitir": notas.notas, "pendencias": pendencias}, rastro)
+                  "notas_a_emitir": notas.notas, "lancamentos_classificados": ban.lancamentos,
+                  "pendencias": pendencias}, rastro)
+    bancos_mes = {}
+    for l in aurora.lancamentos + meridiano.lancamentos:
+        if no_mes(l.data, mes):
+            bancos_mes.setdefault(l.arquivo, set()).add(l.ref_origem)
     validar_i_r3({ARQUIVO_ORBE: {t.id_transacao for t in txs_mes},
-                  ARQUIVO_PONTE: {o.n_operacao for o in ops_mes}}, rastro)
+                  ARQUIVO_PONTE: {o.n_operacao for o in ops_mes}, **bancos_mes}, rastro)
     validar_i_d1(divergencias)
     validar_i_n1(notas.notas)
+    validar_i_c1(ban.lancamentos, plano)
 
     saida.mkdir(parents=True, exist_ok=True)
     escrever_csv(saida / "comissoes_por_lojista.csv", "comissoes_por_lojista", comissoes)
     escrever_csv(saida / "divergencias_taxa.csv", "divergencias_taxa", divergencias)
     escrever_csv(saida / "notas_a_emitir.csv", "notas_a_emitir", notas.notas)
+    escrever_csv(saida / "lancamentos_classificados.csv", "lancamentos_classificados", ban.lancamentos)
     escrever_csv(saida / "pendencias.csv", "pendencias", pendencias)
     escrever_rastro(saida / "rastro.csv", rastro)
 
     # Sem carimbo de data: o log também é idêntico entre duas execuções com as mesmas entradas.
     linhas_log = [
         f"fechamento {mes}",
-        f"arquivos: {arq_orbe.name}, {arq_taxas.name}, {arq_ponte.name}",
+        f"arquivos: {arq_orbe.name}, {arq_taxas.name}, {arq_ponte.name}, {arq_plano.name}, {arq_aurora.name}, "
+        f"{arq_meridiano.name}",
         f"Orbe: {len(txs)} linha(s), {len(txs_mes)} no mês, {len(txs) - len(txs_mes)} fora do mês",
         f"Ponte: {len(ops)} linha(s), {len(ops_mes)} no mês, {len(ops) - len(ops_mes)} fora do mês",
         f"Taxas: {len(contratos)} linha(s) de contrato",
+        f"Plano de contas: {len(plano)} conta(s), {sum(c.analitica for c in plano.values())} analítica(s)",
+        f"Aurora: {len(aurora.lancamentos)} lançamento(s); cadeia de saldos fecha "
+        f"(R$ {fmt(aurora.saldo_inicial)} -> R$ {fmt(aurora.saldo_final)})" if aurora.saldo_inicial is not None
+        else f"Aurora: {len(aurora.lancamentos)} lançamento(s); sem SALDO ANTERIOR, cadeia conferida a partir da 1ª linha",
+        f"Meridiano: {len(meridiano.lancamentos)} lançamento(s); OFX sem saldo inicial, cadeia não verificável",
+        f"Meridiano: {ban.conciliadas} TED(s) à Ponte conciliada(s) com Σ(Valor R$ + IOF) das operações do dia",
         *ledger.linhas_log(),
         *[f"AVISO: {a}" for a in avisos],
-        "validação: I-R1, I-R3, I-D1, I-N1 ok",
+        "validação: I-R1, I-R3, I-D1, I-N1, I-C1 ok",
         f"comissoes_por_lojista: {len(comissoes)} linha(s)",
         f"divergencias_taxa: {len(divergencias)} linha(s)",
         f"notas_a_emitir: {len(notas.notas)} linha(s)",
+        f"lancamentos_classificados: {len(ban.lancamentos)} linha(s), "
+        f"{sum(1 for l in ban.lancamentos if l['metodo'] == 'REGRA')} por REGRA",
         f"pendencias: {len(pendencias)} linha(s)",
         f"rastro: {len(rastro.linhas())} linha(s)",
     ]
     (saida / "execucao.log").write_text("\n".join(linhas_log) + "\n", encoding="utf-8")
-    return ResultadoFechamento(comissoes, divergencias, excecoes, notas.notas)
+    return ResultadoFechamento(comissoes, divergencias, excecoes, notas.notas, ban.lancamentos)

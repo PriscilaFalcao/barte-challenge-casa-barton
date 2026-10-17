@@ -76,3 +76,11 @@ def validar_i_r3(esperadas: dict[str, set[str]], rastro: Rastro) -> None:
             falhas.append(f"I-R3 {arquivo}: {len(faltam)} referência(s) sem rastro, ex.: {', '.join(faltam[:5])}")
     if falhas:
         raise ValidationError(falhas)
+
+
+def validar_i_c1(lancamentos: list[dict], plano: dict) -> None:
+    """I-C1: toda conta de lancamentos_classificados existe no plano e aceita lançamento (analítica)."""
+    falhas = [f"I-C1 {l['id_saida']}: conta {l['conta_codigo']} inexistente ou sintética"
+              for l in lancamentos if l["conta_codigo"] not in plano or not plano[l["conta_codigo"]].analitica]
+    if falhas:
+        raise ValidationError(falhas)

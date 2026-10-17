@@ -112,7 +112,8 @@ def test_mixed_batch_and_i_r1_holds():
     coms = [_com(A, "100.00"), _com(B, "-5.50"), _com(C, "0.00"), _com(A, "40.00", "REMESSA")]
     res, r = _rodar(coms)
     assert sorted(n["id_saida"] for n in res.notas) == sorted([f"NF-CHK-{A}-202609", "NF-REM-202609"])
-    assert len(res.excecoes) == 2
+    assert sorted(e.tipo for e in res.excecoes) == [TipoExcecao.COMISSAO_NAO_POSITIVA,
+                                                     TipoExcecao.COMISSAO_NAO_POSITIVA, TipoExcecao.CONFERIR_MES_SEGUINTE]
     pend = [{"id_saida": e.id_saida, "valor_brl": e.valor_brl} for e in res.excecoes]
     validar_i_r1({"comissoes_por_lojista": coms, "notas_a_emitir": res.notas, "pendencias": pend}, r)
     validar_i_n1(res.notas)
@@ -131,3 +132,11 @@ def test_order_independent():
 def test_i_n1_rejects_non_positive_note():
     with pytest.raises(ValidationError, match="NF-X"):
         validar_i_n1([{"id_saida": "NF-X", "valor_brl": D("0.00")}])
+
+
+def test_remessa_note_opens_a_pending_to_check_next_month_ted():
+    res, r = _rodar([_com(A, "40.00", "REMESSA")])
+    (e,) = res.excecoes
+    assert (e.tipo, e.ref_origem, e.valor_brl, e.quem_decide) == (
+        TipoExcecao.CONFERIR_MES_SEGUINTE, "REPASSE-PONTE-202609", D("40.00"), "Helena")
+    assert r.soma(e.id_saida) == D("40.00")

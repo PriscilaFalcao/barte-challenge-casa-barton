@@ -42,7 +42,7 @@ def test_twenty_checkout_notes_and_one_remessa_note(corrida):
 def test_casa_has_no_checkout_note_and_a_pending_for_helena(corrida):
     _, res, _ = corrida
     assert all(n["tomador_cnpj"] != CASA for n in res.notas)  # a remessa da Casa vai na nota da Ponte
-    (e,) = res.excecoes
+    (e,) = [e for e in res.excecoes if e.tipo == TipoExcecao.COMISSAO_NAO_POSITIVA]
     assert (e.tipo, e.valor_brl, e.quem_decide) == (TipoExcecao.COMISSAO_NAO_POSITIVA, D("-5.50"), "Helena")
     assert e.ref_origem == f"{CASA}-202609"
 

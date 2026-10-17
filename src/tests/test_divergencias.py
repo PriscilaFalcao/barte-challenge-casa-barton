@@ -6,7 +6,7 @@ import pytest
 
 from tarvo.config import OverrideTaxa
 from tarvo.core.excecoes import TipoExcecao
-from tarvo.engines.divergencias import calcular_divergencias
+from tarvo.engines.divergencias import CONTRATO, ISENCAO, calcular_divergencias
 from tarvo.output.validators import ValidationError, validar_i_d1, validar_i_r1
 from tests.helpers import CNPJ, contrato, rodar_checkout, tx
 
@@ -15,7 +15,7 @@ ZERO_DEB = OverrideTaxa(CNPJ, ("DEBITO", "ANTECIPACAO"), D("0"), date(2026, 9, 1
 
 def _div(txs, contratos=None, overrides=(), **kw):
     res, rastro = rodar_checkout(txs, contratos, overrides)
-    return calcular_divergencias(res.linhas, rastro, **kw), rastro
+    return calcular_divergencias(res.linhas, rastro, "2026-09", {CNPJ: "Loja Um"}, **kw), rastro
 
 
 def test_truncation_cent_is_not_a_divergence():
@@ -73,12 +73,39 @@ def test_rastro_has_one_line_per_divergence_with_the_difference():
     validar_i_r1({"divergencias_taxa": r.divergencias}, rastro)
 
 
-def test_each_divergence_is_a_pending_for_helena_with_rastro():
-    r, rastro = _div([tx("TX1", bruto="1000.00", aplicada="1.50")])
+def test_one_pending_per_merchant_with_net_value_and_every_transaction_in_rastro():
+    """✅ Casa Barton 11h01: uma pendência por contraparte e lojista; ✅ P2: venda e estorno se anulam."""
+    r, rastro = _div([tx("TX1", bruto="1000.00", aplicada="1.50"), tx("TX2", bruto="500.00", aplicada="1.50"),
+                      tx("TX3", tipo="ESTORNO", bruto="-200.00", aplicada="1.50", ref="TX1", orig=date(2026, 9, 2))])
     (e,) = r.excecoes
-    assert (e.tipo, e.ref_origem, e.valor_brl, e.quem_decide) == (TipoExcecao.DIVERGENCIA_ORBE, "TX1", D("5.00"), "Helena")
-    assert rastro.soma(e.id_saida) == D("5.00")
-    assert "1.50" in e.motivo and "1.00" in e.motivo
+    assert (e.tipo, e.ref_origem, e.valor_brl, e.quem_decide) == (
+        TipoExcecao.DIVERGENCIA_ORBE, f"{CNPJ}-202609", D("6.50"), "Helena")
+    assert e.id_saida == f"PEN-DIVERGENCIA_ORBE-{CNPJ}-202609"
+    assert sorted(l.ref_origem for l in rastro.linhas() if l.id_saida == e.id_saida) == ["TX1", "TX2", "TX3"]
+    assert rastro.soma(e.id_saida) == D("6.50")
+    assert "Loja Um" in e.motivo and "1.50% x 1.00%" in e.motivo and "3 transação" in e.motivo
+
+
+def test_contract_divergence_is_marked_as_such():
+    r, _ = _div([tx(bruto="1000.00", aplicada="1.50")])
+    assert r.divergencias[0]["natureza"] == CONTRATO
+
+
+def test_override_divergence_is_a_merchant_refund_not_an_orbe_charge():
+    """✅ Helena 10h58 (Casa): listada e marcada em divergências, pendência única com o total, fora da Orbe."""
+    txs = [tx("TX1", bruto="200.00", aplicada="1.49"), tx("TX2", bruto="300.00", aplicada="1.49")]
+    r, rastro = _div(txs, overrides=[ZERO_DEB])
+    assert {d["natureza"] for d in r.divergencias} == {ISENCAO}
+    (e,) = r.excecoes
+    assert (e.tipo, e.valor_brl, e.quem_decide) == (TipoExcecao.DEVOLUCAO_LOJISTA, D("7.45"), "Helena e Diego")
+    assert "não entra na cobrança à Orbe" in e.motivo and rastro.soma(e.id_saida) == D("7.45")
+
+
+def test_same_merchant_with_both_natures_gets_two_pendings():
+    ovr = OverrideTaxa(CNPJ, ("DEBITO",), D("0"), date(2026, 9, 1), date(2026, 12, 31), "C8", "Slack")
+    r, _ = _div([tx("TX1", bruto="100.00", aplicada="1.50"), tx("TX2", mod="PIX", bruto="100.00", aplicada="1.50")],
+                overrides=[ovr])
+    assert sorted(e.tipo for e in r.excecoes) == [TipoExcecao.DEVOLUCAO_LOJISTA, TipoExcecao.DIVERGENCIA_ORBE]
 
 
 def test_order_independent():

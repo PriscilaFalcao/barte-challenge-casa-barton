@@ -44,19 +44,22 @@ def test_total_matches_independent_computation_from_raw_rows(corrida):
 
 def test_duplicate_is_counted_once_and_listed_for_ponte(corrida):
     res, rastro, _ = corrida
-    dup = [e for e in res.excecoes if "duplicado" in e.motivo]
-    assert [(e.ref_origem, e.valor_brl, e.quem_decide) for e in dup] == [("PC-0926-0162", D("410.94"), "Helena")]
+    dup = [e for e in res.excecoes if "duplicada" in e.motivo]
+    assert [(e.ref_origem, e.valor_brl, e.quem_decide) for e in dup] == [("50900987000179-202609", D("410.94"), "Helena")]
+    assert "PC-0926-0162" in dup[0].motivo
     comissao_op = [l for l in rastro.linhas() if l.ref_origem == "PC-0926-0162" and l.id_saida.startswith("COM-REM")]
     assert len(comissao_op) == 1 and comissao_op[0].valor == D("410.94")
 
 
-def test_four_negative_spreads_deviate_3565_98_from_contract(corrida):
-    res, _, _ = corrida
-    neg = [d for d in res.divergencias if D(d["taxa_aplicada_pct"]) < 0]
-    assert sorted(d["ref_origem"] for d in neg) == ["PC-0926-0210", "PC-0926-0326", "PC-0926-0491", "PC-0926-0545"]
-    assert sum(d["diferenca_brl"] for d in neg) == D("-3565.98")  # magnitude conferida; sinal = aplicado − contratado
+def test_four_negative_spreads_deviate_3565_98_from_contract_and_are_only_contestations(corrida):
+    """✅ V4: não é divergência (o lojista não pagou a mais); fica como contestação, uma por lojista."""
+    res, rastro, _ = corrida
+    assert not [d for d in res.divergencias if D(d["taxa_aplicada_pct"]) < 0]
     contest = [e for e in res.excecoes if "negativo" in e.motivo]
     assert len(contest) == 4 and all(e.tipo == TipoExcecao.CONTESTACAO_PONTE for e in contest)
+    assert sum(e.valor_brl for e in contest) == D("-3565.98")  # magnitude conferida; sinal = aplicado − contratado
+    refs = {l.ref_origem for e in contest for l in rastro.linhas() if l.id_saida == e.id_saida}
+    assert refs == {"PC-0926-0210", "PC-0926-0326", "PC-0926-0491", "PC-0926-0545"}
 
 
 def test_negative_operations_are_not_commissioned(corrida):
@@ -78,11 +81,10 @@ def test_mundo_aberto_alternative_formula_is_three_cents_higher(corrida):
     assert alt == D("1418.88")
 
 
-def test_only_mundo_aberto_and_the_negatives_diverge(corrida):
+def test_only_mundo_aberto_diverges(corrida):
     """Ruído do Spread % (±0,0016 p.p.) fica abaixo da tolerância em todos os outros contratos."""
     res, _, _ = corrida
-    assert len(res.divergencias) == 27
-    assert collections.Counter(d["cnpj"] for d in res.divergencias if D(d["taxa_aplicada_pct"]) >= 0) == {MUNDO: 23}
+    assert collections.Counter(d["cnpj"] for d in res.divergencias) == {MUNDO: 23}
 
 
 def test_every_accepted_operation_is_in_the_rastro(corrida):
@@ -96,4 +98,7 @@ def test_invariants(corrida):
     validar_i_r1({"comissoes_por_lojista": res.comissoes, "divergencias_taxa": res.divergencias,
                   "pendencias": pend}, rastro)
     validar_i_d1(res.divergencias)
-    assert len(res.excecoes) == 28 and sum(e.valor_brl for e in res.excecoes) == D("-1736.19")
+    # 1 contestação por lojista: Mundo Aberto, Bagagem Livre (duplicata) e os 4 lojistas com spread negativo.
+    assert len(res.excecoes) == 6 and sum(e.valor_brl for e in res.excecoes) == D("-1736.19")
+    (mundo,) = [e for e in res.excecoes if e.ref_origem == f"{MUNDO}-202609"]
+    assert mundo.valor_brl == D("1418.85") and len([l for l in rastro.linhas() if l.id_saida == mundo.id_saida]) == 23
