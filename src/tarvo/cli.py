@@ -141,7 +141,13 @@ def main(argv: list[str] | None = None) -> None:
     r.add_argument("--desativar", type=int, help="id da regra a desativar (reverter)")
     r.add_argument("--estado", type=Path, default=_estado_padrao())
 
+    web = sub.add_parser("web", help="inicia a interface local")
+    web.add_argument("--port", type=int, default=8000)
     a = ap.parse_args(argv)
-    if a.cmd == "decidir" and a.ec and not a.cnpj:
-        ap.error("--ec exige --cnpj")
-    {"fechar": _cmd_fechar, "fila": _cmd_fila, "decidir": _cmd_decidir, "regras": _cmd_regras}[a.cmd](a)
+
+    res = fechar(a.mes, a.dados, a.saida)
+    def total(linha: str) -> Decimal:
+        return sum((c["comissao_brl"] for c in res.comissoes if c["linha_negocio"] == linha), Decimal("0"))
+
+    print(f"{a.mes}: comissão de checkout R$ {fmt(total('CHECKOUT'))}, remessa R$ {fmt(total('REMESSA'))}, "
+          f"{len(res.notas)} nota(s), {len(res.divergencias)} divergência(s), {len(res.excecoes)} pendência(s). Saídas em {a.saida}/")
