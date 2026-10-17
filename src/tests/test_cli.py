@@ -57,7 +57,7 @@ def test_two_runs_produce_identical_files(dados, tmp_path):
     for d in (a, b):
         main(["fechar", "--mes", "2026-09", "--dados", str(dados), "--saida", str(d)])
     for nome in ("comissoes_por_lojista.csv", "divergencias_taxa.csv", "notas_a_emitir.csv", "rastro.csv",
-                 "pendencias.csv"):
+                 "pendencias.csv", "execucao.log"):
         assert (a / nome).read_bytes() == (b / nome).read_bytes()
 
 
@@ -100,3 +100,43 @@ def test_planilha_exception_becomes_pending_with_rastro_line(dados, tmp_path):
     ras = [r for r in _ler(saida / "rastro.csv") if r["id_saida"] == pend["Taxas!L6"]["id_saida"]]
     assert [(r["arquivo_origem"], r["ref_origem"], r["valor"]) for r in ras] == [
         ("02_tabela_taxas_contratadas.xlsx", "Taxas!L6", "0.00")]
+
+
+def test_wrong_month_fails_instead_of_writing_empty_outputs(dados, tmp_path):
+    saida = tmp_path / "saida"
+    with pytest.raises(LayoutError, match="nenhuma linha.*2026-10"):
+        main(["fechar", "--mes", "2026-10", "--dados", str(dados), "--saida", str(saida)])
+    assert not saida.exists() or not list(saida.iterdir())
+
+
+def test_month_check_warns_when_only_one_source_is_empty():
+    from tarvo.pipeline import checar_mes_com_dados
+
+    assert checar_mes_com_dados(10, 5, "2026-09") == []
+    assert "Ponte" in checar_mes_com_dados(10, 0, "2026-09")[0]
+    assert "Orbe" in checar_mes_com_dados(0, 5, "2026-09")[0]
+    with pytest.raises(LayoutError, match="nenhuma linha.*2026-09"):
+        checar_mes_com_dados(0, 0, "2026-09")
+
+
+def test_execution_log_reports_counts_ignored_rows_and_validations(dados, tmp_path):
+    main(["fechar", "--mes", "2026-09", "--dados", str(dados), "--saida", str(tmp_path)])
+    log = (tmp_path / "execucao.log").read_text(encoding="utf-8")
+    for esperado in (
+        "fechamento 2026-09",
+        "Orbe: 1943 linha(s), 1943 no mês, 0 fora do mês",
+        "Ponte: 233 linha(s), 233 no mês, 0 fora do mês",
+        "Ponte: 2 linha(s) ignorada(s) (rodapé ou linha sem dado)",
+        "Taxas: 1 linha(s) ignorada(s) (rodapé ou linha sem dado)",
+        "validação: I-R1, I-R3, I-D1, I-N1 ok",
+        "comissoes_por_lojista: 35 linha(s)",
+        "pendencias: 240 linha(s)",
+    ):
+        assert esperado in log, esperado
+
+
+def test_dash_m_prints_clean_error_and_exits_1_on_wrong_month(dados, tmp_path):
+    r = subprocess.run([sys.executable, "-m", "tarvo", "fechar", "--mes", "2026-10", "--dados", str(dados),
+                        "--saida", str(tmp_path / "s")], cwd=SRC, capture_output=True, text=True)
+    assert r.returncode == 1
+    assert "nenhuma linha" in r.stderr and "Traceback" not in r.stderr

@@ -115,3 +115,39 @@ def test_real_file_golden(dados):
     assert sum(1 for o in ops if o.spread_brl < 0) == 4
     assert sum(1 for o in ops if o.status == "APROVADO C/ RESSALVA") == 16
     assert sum((o.spread_brl for o in ops), D(0)) == D("78073.59")  # o rodapé da Ponte conta a duplicata
+
+
+def test_real_file_ledger_only_has_the_two_footer_rows(dados):
+    from tarvo.core.ledger import Ledger
+
+    ledger = Ledger()
+    ler_ponte(dados / "03_email_ponte_cambio_relatorio_set2026.eml", ledger)
+    assert ledger.contar("Ponte", "rodapé ou linha sem dado") == 2
+
+
+def _linha_dado(n_op):
+    return [n_op, *OP[1:]]
+
+
+def test_row_with_data_but_unknown_prefix_fails_loudly(tmp_path):
+    with pytest.raises(LayoutError, match="linha 7.*PX-0926-0300.*PC-"):
+        ler_ponte(_eml(tmp_path, [_xlsx([OP, _linha_dado("PX-0926-0300")])]))
+
+
+def test_row_with_data_and_empty_operation_number_fails_loudly(tmp_path):
+    with pytest.raises(LayoutError, match="linha 7"):
+        ler_ponte(_eml(tmp_path, [_xlsx([OP, _linha_dado(None)])]))
+
+
+def test_footer_with_numbers_in_other_columns_is_not_flagged(tmp_path):
+    # o rodapé real tem 233 e 78073.59 na coluna B; só CNPJ, Valor ME e Spread R$ denunciam operação
+    ops = ler_ponte(_eml(tmp_path, [_xlsx([OP])]))
+    assert len(ops) == 1
+
+
+def test_footer_rows_are_counted_in_the_ledger_but_blank_rows_are_not(tmp_path):
+    from tarvo.core.ledger import Ledger
+
+    ledger = Ledger()
+    ler_ponte(_eml(tmp_path, [_xlsx([OP])]), ledger)
+    assert ledger.contar("Ponte", "rodapé ou linha sem dado") == 2  # "Total de operações" e "Spread total R$"

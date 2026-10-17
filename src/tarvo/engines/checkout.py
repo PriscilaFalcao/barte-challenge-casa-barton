@@ -7,6 +7,8 @@ from datetime import date
 from decimal import Decimal
 
 from ..contracts.resolver import ContratoError, Resolvedor, TaxaResolvida, produto_de
+from ..core.competencia import no_mes
+from ..core.ledger import Ledger
 from ..core.excecoes import Excecao, TipoExcecao
 from ..core.ids import id_comissao
 from ..core.money import fmt, fmt_pct, round_money
@@ -69,7 +71,7 @@ def _pendencia(res: ResultadoCheckout, rastro: Rastro, tipo: TipoExcecao, ref: s
 
 
 def calcular_checkout(txs: list[OrbeTx], registro: Registro, resolvedor: Resolvedor,
-                      mes: str, rastro: Rastro) -> ResultadoCheckout:
+                      mes: str, rastro: Rastro, ledger: Ledger | None = None) -> ResultadoCheckout:
     res = ResultadoCheckout()
     sem_contrato: dict[str, list[OrbeTx]] = collections.defaultdict(list)
     nao_resolvidas: dict[str, list[OrbeTx]] = collections.defaultdict(list)
@@ -78,8 +80,10 @@ def calcular_checkout(txs: list[OrbeTx], registro: Registro, resolvedor: Resolve
     linhas_do_lojista: dict[str, list[LinhaCheckout]] = collections.defaultdict(list)
 
     # Ordem fixa: o resultado não depende da ordem das linhas de entrada.
-    for tx in sorted((t for t in txs if t.data_movimento.strftime("%Y-%m") == mes),
-                     key=lambda t: t.id_transacao):
+    for t in txs:
+        if not no_mes(t.data_movimento, mes) and ledger is not None:
+            ledger.ignorar("Orbe", "fora do mês", t.id_transacao)
+    for tx in sorted((t for t in txs if no_mes(t.data_movimento, mes)), key=lambda t: t.id_transacao):
         entidade = registro.classificar(ec=tx.cod_estabelecimento)
         if entidade.situacao == "SEM_CONTRATO":
             sem_contrato[tx.cod_estabelecimento].append(tx)

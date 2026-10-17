@@ -148,3 +148,30 @@ def test_real_file_golden(dados):
         (None, date(2026, 9, 14)), (date(2026, 9, 15), None)]
     assert bridge[0].taxas["CREDITO_1X"] == Decimal("2.59") and bridge[1].taxas["CREDITO_1X"] == Decimal("2.19")
     assert {c.lojista for c in cs if c.inativo} == {"Globo Trotter Viagens Ltda"}
+
+
+def test_row_with_data_but_no_merchant_name_fails_loudly(tmp_path):
+    sem_nome = [None, *L1[1:]]
+    with pytest.raises(LayoutError, match="Taxas!L7.*nome"):
+        ler_taxas(_xlsx(tmp_path, [L1, sem_nome]))
+
+
+def test_row_with_only_cnpj_and_no_name_fails_too(tmp_path):
+    with pytest.raises(LayoutError, match="Taxas!L6"):
+        ler_taxas(_xlsx(tmp_path, [[None, "22.224.579/0001-09"]]))
+
+
+def test_footer_is_counted_in_the_ledger_and_blank_rows_are_not(tmp_path):
+    from tarvo.core.ledger import Ledger
+
+    ledger = Ledger()
+    ler_taxas(_xlsx(tmp_path, [L1, [None], ["* spread em branco = padrão"]]), ledger)
+    assert ledger.contar("Taxas", "rodapé ou linha sem dado") == 1
+
+
+def test_real_file_ledger_has_only_the_footer_note(dados):
+    from tarvo.core.ledger import Ledger
+
+    ledger = Ledger()
+    ler_taxas(dados / "02_tabela_taxas_contratadas.xlsx", ledger)
+    assert ledger.contar("Taxas", "rodapé ou linha sem dado") == 1

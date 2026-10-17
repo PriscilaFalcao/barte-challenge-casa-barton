@@ -47,3 +47,30 @@ def test_i_r1_reports_all_failures_at_once():
     with pytest.raises(ValidationError) as e:
         validar_i_r1(saidas, _rastro())
     assert "COM-A" in str(e.value) and "COM-B" in str(e.value)
+
+
+def test_i_r3_passes_when_every_expected_ref_is_in_the_rastro():
+    from tarvo.output.validators import validar_i_r3
+
+    r = Rastro()
+    r.add("COM-A", "o.csv", "TX1", Decimal("1"))
+    r.add("PEN-X", "o.csv", "TX2", Decimal("0"))
+    validar_i_r3({"o.csv": {"TX1", "TX2"}}, r)
+
+
+def test_i_r3_fails_naming_file_and_missing_refs():
+    from tarvo.output.validators import validar_i_r3
+
+    r = Rastro()
+    r.add("COM-A", "o.csv", "TX1", Decimal("1"))
+    with pytest.raises(ValidationError, match=r"o\.csv.*TX2"):
+        validar_i_r3({"o.csv": {"TX1", "TX2"}}, r)
+
+
+def test_i_r3_only_matches_refs_of_the_same_source_file():
+    from tarvo.output.validators import validar_i_r3
+
+    r = Rastro()
+    r.add("COM-A", "outro.csv", "TX1", Decimal("1"))
+    with pytest.raises(ValidationError):
+        validar_i_r3({"o.csv": {"TX1"}}, r)

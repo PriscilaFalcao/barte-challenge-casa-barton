@@ -11,7 +11,18 @@ A one-day hackathon submission (Barte AI Services, "Case Tarvo", 16–17 Oct 202
 
 Full brief: `01_instrucoes_participantes.docx` (Portuguese). Data pack description: `dados/00_LEIA-ME.md`. All data is synthetic.
 
-There is no code yet (`src/`, `saida/` are empty). No build/test tooling has been chosen.
+Implementation status (blocks per `docs/PRD.md` section 11): B0 to B5 are done (core, ingestion of Orbe/Taxas/Ponte, merchant registry, rate resolver, checkout, remessa, divergences, notes). Bank statements (B6), agents/state (B8, B11) and the web UI (B9, B10) are not built yet.
+
+**All code lives under `src/`**, tests (`src/tests/`) and helper scripts (`src/scripts/`) included. Python 3.11+ (a `.venv` with 3.13 is used locally).
+
+```
+.venv/bin/pip install -e .                       # once
+.venv/bin/pytest                                  # whole suite (pytest runs src/tests)
+.venv/bin/python -m tarvo fechar --mes 2026-09    # reads dados/, writes saida/ (+ execucao.log)
+.venv/bin/python src/scripts/inspecionar_b1.py    # manual inspection of ingestion + rate resolver
+```
+
+Nothing is dropped silently: structural skips (footer rows, ignored sheet, out-of-month lines) are counted in `saida/execucao.log`; rows that look like data but are not recognized raise `LayoutError`; an empty month fails instead of writing empty outputs.
 
 ## Hard constraints from the brief
 

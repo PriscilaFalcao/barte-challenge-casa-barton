@@ -12,6 +12,7 @@ from pathlib import Path
 import openpyxl
 
 from ..core.ids import norm_cnpj
+from ..core.ledger import Ledger
 from .erros import LayoutError
 from .texto import norm_texto
 
@@ -79,7 +80,7 @@ def _anexo_xlsx(path: Path) -> bytes:
     return anexos[0].get_payload(decode=True)
 
 
-def ler_ponte(path: Path) -> list[OpPonte]:
+def ler_ponte(path: Path, ledger: Ledger | None = None) -> list[OpPonte]:
     wb = openpyxl.load_workbook(io.BytesIO(_anexo_xlsx(path)), data_only=True)
     aba = next((ws for ws in wb.worksheets if norm_texto(ws.title) == norm_texto(ABA)), None)
     if aba is None:
@@ -100,7 +101,15 @@ def ler_ponte(path: Path) -> list[OpPonte]:
     ops: list[OpPonte] = []
     for i, linha in enumerate(linhas[cab + 1:], start=cab + 2):
         n_op = str(cel(linha, "n_operacao") or "").strip()
-        if not n_op.startswith("PC-"):  # rodapé ("Total de operações") e linhas em branco não são operação
+        if not n_op.startswith("PC-"):
+            # Só o rodapé ("Total de operações") pode ser pulado. Quem tem CNPJ, Valor ME ou Spread R$
+            # é operação: se não for reconhecida, falha em vez de sumir da comissão.
+            if any(cel(linha, c) not in (None, "") for c in ("cnpj", "valor_me", "spread_brl")):
+                raise LayoutError(
+                    f"Ponte: linha {i} parece operação (tem CNPJ, Valor ME ou Spread R$) mas o Nº Operação "
+                    f"{n_op!r} não começa com PC-")
+            if ledger is not None and any(c not in (None, "") for c in linha):
+                ledger.ignorar("Ponte", "rodapé ou linha sem dado", f"L{i}")
             continue
         onde = f"linha {i}, {n_op}"
         liq = cel(linha, "data_liquidacao")

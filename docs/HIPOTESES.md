@@ -228,6 +228,7 @@ Ainda **nenhuma pergunta enviada** pelo nosso time. As que vamos enviar, sobre o
   - Taxa: aceita número (`0.0149`) e texto (`'1,49%'`).
   - Vigência: aceita data, "até dd/mm/aaaa" e "a partir de dd/mm/aaaa"; sem vigência = sempre.
   - Lojista com Obs "INATIVO" é ignorado.
+  - Linha sem nome de lojista mas com CNPJ, EC ou taxa **falha** (não é tratada como rodapé). Só a nota de rodapé (`*`) e linhas em branco são puladas.
 - **Encodings explícitos:**
   - Orbe: ASCII/UTF-8.
   - Aurora: UTF-8.
@@ -236,7 +237,7 @@ Ainda **nenhuma pergunta enviada** pelo nosso time. As que vamos enviar, sobre o
 - **Ponte:**
   - O anexo `.xlsx` é extraído do `.eml` pelo programa.
   - O cabeçalho é localizado pela célula "Nº Operação".
-  - Linhas são de operação quando o ID começa com "PC-".
+  - Linhas são de operação quando o ID começa com "PC-". Linha sem esse prefixo que tenha CNPJ, Valor ME ou Spread R$ **falha** (não é tratada como rodapé).
   - Dedup pelo número da operação.
   - O rodapé e a aba Resumo **não** são usados como fonte.
 - **Aurora:**
@@ -244,6 +245,10 @@ Ainda **nenhuma pergunta enviada** pelo nosso time. As que vamos enviar, sobre o
   - Linhas sem data (SALDO FINAL, aviso) e SALDO ANTERIOR são descartadas.
   - A cadeia de saldos é verificada linha a linha (fecha em setembro).
 - **Meridiano:** `ref_origem` = FITID. As tags SGML do OFX não fecham.
+- **Nada some em silêncio:**
+  - O código só descarta estrutura do arquivo (rodapé, aba ignorada, linha em branco, linha fora do mês), e cada descarte é contado em `saida/execucao.log`.
+  - Se nenhuma linha da Orbe nem da Ponte cai no mês pedido, a execução falha (mês errado).
+  - Toda linha do mês aparece no rastro (invariante I-R3, verificado em toda execução).
 - **Valores pt-BR:** `66.026,00` → 66026.00. Todo cálculo é feito em decimal exato.
 
 ## 6. Limitações conhecidas

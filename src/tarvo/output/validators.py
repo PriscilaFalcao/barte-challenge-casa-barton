@@ -61,3 +61,18 @@ def validar_i_n1(notas: list[dict]) -> None:
               for n in notas if n["valor_brl"] <= 0]
     if falhas:
         raise ValidationError(falhas)
+
+
+def validar_i_r3(esperadas: dict[str, set[str]], rastro: Rastro) -> None:
+    """I-R3: toda linha de entrada do mês (por arquivo de origem) aparece no rastro, seja numa
+    comissão, divergência ou pendência. Garante que nada some em silêncio dentro do mês."""
+    no_rastro: dict[str, set[str]] = {}
+    for l in rastro.linhas():
+        no_rastro.setdefault(l.arquivo_origem, set()).add(l.ref_origem)
+    falhas = []
+    for arquivo, refs in sorted(esperadas.items()):
+        faltam = sorted(refs - no_rastro.get(arquivo, set()))
+        if faltam:
+            falhas.append(f"I-R3 {arquivo}: {len(faltam)} referência(s) sem rastro, ex.: {', '.join(faltam[:5])}")
+    if falhas:
+        raise ValidationError(falhas)

@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 
 from ..contracts.resolver import ContratoError, Resolvedor
+from ..core.competencia import no_mes
+from ..core.ledger import Ledger
 from ..core.excecoes import Excecao, TipoExcecao
 from ..core.ids import id_comissao, id_divergencia
 from ..core.money import fmt, fmt_pct, round_money
@@ -57,6 +59,7 @@ def calcular_remessa(
     participacao: Decimal = Decimal("0.50"),
     tolerancia_spread_pp: Decimal = Decimal("0.01"),
     spread_negativo_em_divergencias: bool = True,
+    ledger: Ledger | None = None,
 ) -> ResultadoRemessa:
     """Parâmetros ⚠️ com default documentado: `participacao` (✅ R1, 50%), `tolerancia_spread_pp` (⚠️ R11,
     🟡 V9) e `spread_negativo_em_divergencias` (⚠️ R12, 🟡 V4). Competência = data de contratação (✅ R8)."""
@@ -71,7 +74,9 @@ def calcular_remessa(
         return round_money(participacao * o.spread_brl)
 
     for o in sorted(ops, key=lambda o: (o.n_operacao, o.linha_fisica)):
-        if o.data_contratacao.strftime("%Y-%m") != mes:
+        if not no_mes(o.data_contratacao, mes):
+            if ledger is not None:
+                ledger.ignorar("Ponte", "fora do mês", o.n_operacao)
             continue
         if o.n_operacao in primeiras:  # ✅ R6: número de operação é único; a repetição não conta
             duplicatas[o.n_operacao].append(o)
