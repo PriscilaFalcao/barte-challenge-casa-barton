@@ -53,3 +53,11 @@ def validar_i_d1(divergencias: list[dict]) -> None:
     ]
     if falhas:
         raise ValidationError(falhas)
+
+
+def validar_i_n1(notas: list[dict]) -> None:
+    """I-N1: nenhuma nota com valor <= 0 (✅ N2)."""
+    falhas = [f"I-N1 {n['id_saida']}: nota com valor {fmt(n['valor_brl'])} (deve ser > 0)"
+              for n in notas if n["valor_brl"] <= 0]
+    if falhas:
+        raise ValidationError(falhas)

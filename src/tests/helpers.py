@@ -7,16 +7,18 @@ from tarvo.core.rastro import Rastro
 from tarvo.engines.checkout import calcular_checkout
 from tarvo.identity.registro import Registro
 from tarvo.ingest.orbe import OrbeTx
+from tarvo.ingest.ponte import OpPonte
 from tarvo.ingest.taxas import ContratoLinha
 
 CNPJ = "11111111000111"
 EC = "1000000001"
 
 
-def contrato(cnpj=CNPJ, ec=EC, ini=None, fim=None, ref="Taxas!L6", debito="1.00", antecip="2.00", nome="Loja Um"):
+def contrato(cnpj=CNPJ, ec=EC, ini=None, fim=None, ref="Taxas!L6", debito="1.00", antecip="2.00", nome="Loja Um",
+             spread=None):
     taxas = {"DEBITO": D(debito), "CREDITO_1X": D("2.50"), "CREDITO_2_6X": D("3.00"),
              "CREDITO_7_12X": D("3.50"), "PIX": D("0.90"), "ANTECIPACAO": D(antecip)}
-    return ContratoLinha(ref, nome, cnpj, ec, taxas, None, "x", ini, fim, True, None)
+    return ContratoLinha(ref, nome, cnpj, ec, taxas, D(spread) if spread else None, "x", ini, fim, True, None)
 
 
 def tx(id_="TX1", dia=date(2026, 9, 10), tipo="VENDA", mod="DEBITO", parc=1, bruto="100.00",
@@ -31,3 +33,9 @@ def rodar_checkout(txs, contratos=None, overrides=(), sem_contrato=None, ecs_ext
     rastro = Rastro()
     res = calcular_checkout(txs, reg, Resolvedor(contratos, overrides), mes, rastro)
     return res, rastro
+
+
+def op(n="PC-0926-0001", dia=date(2026, 9, 10), cnpj=CNPJ, me="1000.00", ptax="5.0000", spread_brl="75.00",
+       spread_pct="0.015", status="APROVADO", obs=None, linha=6):
+    return OpPonte(n, dia, dia, cnpj, "CLIENTE", "USD", D(me), D(ptax), D(spread_brl), D(spread_pct),
+                   status, obs, linha)

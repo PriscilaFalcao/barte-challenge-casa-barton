@@ -26,29 +26,38 @@ def test_fechar_writes_the_checkout_outputs_and_they_reconcile(dados, tmp_path):
     soma = defaultdict(D)
     for r in rastro:
         soma[r["id_saida"]] += D(r["valor"])
-    assert len(comissoes) == 21
+    assert len(comissoes) == 35  # 21 de checkout + 14 de remessa
     for c in comissoes:
         assert soma[c["id_saida"]] == D(c["comissao_brl"])
     por_tipo = defaultdict(list)
     for p in pendencias:
         por_tipo[p["tipo"]].append(p)
         assert soma[p["id_saida"]] == D(p["valor_brl"])
-    assert {t: len(v) for t, v in por_tipo.items()} == {"SEM_CONTRATO": 1, "DIVERGENCIA_ORBE": 210}
+    assert {t: len(v) for t, v in por_tipo.items()} == {"SEM_CONTRATO": 1, "DIVERGENCIA_ORBE": 210, "CONTESTACAO_PONTE": 28,
+                                                      "COMISSAO_NAO_POSITIVA": 1}
     assert por_tipo["SEM_CONTRATO"][0]["quem_decide"] == "Diego"
+    notas = _ler(tmp_path / "notas_a_emitir.csv")
+    assert len(notas) == 21  # 20 de checkout (a Casa não emite) + 1 de remessa para a Ponte
+    for n in notas:
+        assert soma[n["id_saida"]] == D(n["valor_brl"]) > 0
     divergencias = _ler(tmp_path / "divergencias_taxa.csv")
-    assert len(divergencias) == 210
+    assert len(divergencias) == 237  # 210 de checkout + 27 de remessa
     for d in divergencias:
         assert soma[d["id_saida"]] == D(d["diferenca_brl"])
         assert d["taxa_aplicada_pct"] != d["taxa_contratada_pct"]
-    assert sum(D(d["diferenca_brl"]) for d in divergencias) == D("16973.65")
-    assert sum(D(c["comissao_brl"]) for c in comissoes) == D("207039.73")
+    assert sum(D(d["diferenca_brl"]) for d in divergencias if d["linha_negocio"] == "CHECKOUT") == D("16973.65")
+    por_linha = defaultdict(D)
+    for c in comissoes:
+        por_linha[c["linha_negocio"]] += D(c["comissao_brl"])
+    assert dict(por_linha) == {"CHECKOUT": D("207039.73"), "REMESSA": D("39543.45")}
 
 
 def test_two_runs_produce_identical_files(dados, tmp_path):
     a, b = tmp_path / "a", tmp_path / "b"
     for d in (a, b):
         main(["fechar", "--mes", "2026-09", "--dados", str(dados), "--saida", str(d)])
-    for nome in ("comissoes_por_lojista.csv", "divergencias_taxa.csv", "rastro.csv", "pendencias.csv"):
+    for nome in ("comissoes_por_lojista.csv", "divergencias_taxa.csv", "notas_a_emitir.csv", "rastro.csv",
+                 "pendencias.csv"):
         assert (a / nome).read_bytes() == (b / nome).read_bytes()
 
 

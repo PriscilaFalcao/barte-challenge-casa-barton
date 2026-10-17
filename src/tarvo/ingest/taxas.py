@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import re
-import unicodedata
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
@@ -14,6 +13,7 @@ from ..core.excecoes import Excecao, TipoExcecao
 from ..core.ids import norm_cnpj
 from ..core.money import parse_br
 from .erros import LayoutError
+from .texto import norm_texto as _norm
 
 ARQUIVO = "02_tabela_taxas_contratadas.xlsx"
 
@@ -42,11 +42,6 @@ class ContratoLinha:
     vigencia_valida: bool
     obs: str | None
     inativo: bool = False
-
-
-def _norm(texto) -> str:
-    s = unicodedata.normalize("NFKD", str(texto or "")).encode("ascii", "ignore").decode()
-    return re.sub(r"\s+", " ", s).strip().lower()
 
 
 def parse_vigencia(texto: str) -> tuple[date | None, date | None]:

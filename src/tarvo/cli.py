@@ -19,6 +19,8 @@ def main(argv: list[str] | None = None) -> None:
     a = ap.parse_args(argv)
 
     res = fechar(a.mes, a.dados, a.saida)
-    total = sum((c["comissao_brl"] for c in res.comissoes), Decimal("0"))
-    print(f"{a.mes}: {len(res.comissoes)} lojistas, comissão de checkout R$ {fmt(total)}, "
-          f"{len(res.divergencias)} divergência(s), {len(res.excecoes)} pendência(s). Saídas em {a.saida}/")
+    def total(linha: str) -> Decimal:
+        return sum((c["comissao_brl"] for c in res.comissoes if c["linha_negocio"] == linha), Decimal("0"))
+
+    print(f"{a.mes}: comissão de checkout R$ {fmt(total('CHECKOUT'))}, remessa R$ {fmt(total('REMESSA'))}, "
+          f"{len(res.notas)} nota(s), {len(res.divergencias)} divergência(s), {len(res.excecoes)} pendência(s). Saídas em {a.saida}/")
