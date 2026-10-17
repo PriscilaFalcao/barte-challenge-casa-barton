@@ -32,3 +32,11 @@ def fmt(valor: Decimal) -> str:
     if r == 0:
         r = Decimal("0.00")
     return f"{r:.2f}"
+
+
+def fmt_pct(valor: Decimal) -> str:
+    """Taxa em pontos percentuais com no mínimo 2 casas ('2.1' -> '2.10')."""
+    n = valor.normalize()
+    if n.as_tuple().exponent > -2:
+        n = n.quantize(CENTAVO)
+    return f"{n:f}"

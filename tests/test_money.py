@@ -49,3 +49,12 @@ def test_fmt_always_two_places_with_dot():
     assert fmt(Decimal("5.5")) == "5.50"
     assert fmt(Decimal("-0.001")) == "0.00"
     assert fmt(Decimal("214558.33")) == "214558.33"
+
+
+def test_fmt_pct_keeps_at_least_two_places():
+    from tarvo.core.money import fmt_pct
+
+    assert fmt_pct(Decimal("1.4900")) == "1.49"
+    assert fmt_pct(Decimal("2.1")) == "2.10"
+    assert fmt_pct(Decimal("0")) == "0.00"
+    assert fmt_pct(Decimal("1.2345")) == "1.2345"

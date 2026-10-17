@@ -1,0 +1,25 @@
+# Defaults de fábrica: semeiam o banco de regras na primeira execução (PRD seção 4, P7).
+# O usuário de negócio edita essas regras pela tela Configurações, não por este arquivo.
+
+# ✅ C7 (Fox AI 20h16): ECs que a planilha não traz e só o canal conhecia.
+ecs_extra:
+  "1043300981": "66564512000199"   # Novo Horizonte
+  "1043396662": "78576234000179"   # Horizonte Viagens
+  "1038867654": "07752116000126"   # Kiwi
+
+# ✅ C9 (Fox AI 20h16): sem contrato, não faturar até o comercial confirmar.
+sem_contrato:
+  "1076801732": "Atlas Idiomas"
+
+# Grafias adicionais que casam EXATAMENTE após normalização (caixa, acento, pontuação, espaço).
+aliases: {}
+
+# Override de taxa com vigência: vale sobre a planilha.
+overrides_taxa:
+  - cnpj: "00520815000100"          # Casa do Estudante Viagens
+    produtos: [DEBITO, CREDITO_1X, CREDITO_2_6X, CREDITO_7_12X, PIX, ANTECIPACAO]
+    taxa_pct: "0"
+    inicio: 2026-09-01
+    fim: 2026-12-31
+    regra_id: C8
+    fonte: "Lucca, Slack 16/10 20h36: tarifa zero (MDR e antecipação) de set a dez"
