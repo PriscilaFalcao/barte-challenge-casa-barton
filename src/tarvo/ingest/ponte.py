@@ -50,6 +50,7 @@ class OpPonte:
     linha_fisica: int
     valor_brl: Decimal | None = None  # Valor R$ e IOF R$: só para conciliar a TED da Ponte no Meridiano (B6)
     iof: Decimal | None = None
+    arquivo: str = ARQUIVO  # arquivo de origem da operação (rastro)
 
     @property
     def ref_origem(self) -> str:
@@ -86,7 +87,7 @@ def _anexo_xlsx(path: Path) -> bytes:
     return anexos[0].get_payload(decode=True)
 
 
-def ler_ponte(path: Path, ledger: Ledger | None = None) -> list[OpPonte]:
+def ler_ponte(path: Path, ledger: Ledger | None = None, arquivo: str = ARQUIVO) -> list[OpPonte]:
     wb = openpyxl.load_workbook(io.BytesIO(_anexo_xlsx(path)), data_only=True)
     aba = next((ws for ws in wb.worksheets if norm_texto(ws.title) == norm_texto(ABA)), None)
     if aba is None:
@@ -136,5 +137,6 @@ def ler_ponte(path: Path, ledger: Ledger | None = None) -> list[OpPonte]:
             linha_fisica=i,
             valor_brl=_dec_opcional(cel(linha, "valor_brl"), onde),
             iof=_dec_opcional(cel(linha, "iof"), onde),
+            arquivo=arquivo,
         ))
     return ops

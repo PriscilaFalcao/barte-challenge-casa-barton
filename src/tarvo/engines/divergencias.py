@@ -9,7 +9,6 @@ from ..core.excecoes import Excecao, TipoExcecao
 from ..core.ids import id_divergencia
 from ..core.money import fmt, fmt_pct, round_money
 from ..core.rastro import Rastro
-from ..ingest.orbe import ARQUIVO as ARQUIVO_ORBE
 from .checkout import LinhaCheckout
 
 # Coluna extra `natureza` de divergencias_taxa.csv.
@@ -61,7 +60,7 @@ def calcular_divergencias(linhas: list[LinhaCheckout], rastro: Rastro, mes: str,
             "taxa_contratada_pct": fmt_pct(contratada), "taxa_aplicada_pct": fmt_pct(aplicada),
             "diferenca_brl": diferenca, "natureza": natureza,
         })
-        rastro.add(id_saida, ARQUIVO_ORBE, ref, diferenca, l.componente, fmt_pct(contratada), "D1")
+        rastro.add(id_saida, l.tx.arquivo, ref, diferenca, l.componente, fmt_pct(contratada), "D1")
         grupos[(l.cnpj14, natureza)].append((l, diferenca))
 
     competencia = mes.replace("-", "")
@@ -85,6 +84,6 @@ def calcular_divergencias(linhas: list[LinhaCheckout], rastro: Rastro, mes: str,
         exc = Excecao.nova(tipo, f"{cnpj}-{competencia}", liquido, motivo)
         res.excecoes.append(exc)
         for l, d in itens:
-            rastro.add(exc.id_saida, ARQUIVO_ORBE, l.tx.id_transacao, d, l.componente, fmt_pct(l.taxa.pct), "D3")
+            rastro.add(exc.id_saida, l.tx.arquivo, l.tx.id_transacao, d, l.componente, fmt_pct(l.taxa.pct), "D3")
     res.excecoes.sort(key=lambda e: e.id_saida)
     return res

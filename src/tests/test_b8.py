@@ -57,7 +57,7 @@ def test_events_are_recorded_per_stage(dados, tmp_path):
     db = Estado(tmp_path / "est")
     ev = db.eventos(res.execucao_id)
     assert [e["etapa"] for e in ev] == CALCULO + ["agentes", "consolidacao"]
-    assert ev[0]["detalhe"]["orbe"] == 1943 and ev[-1]["detalhe"]["pendencias"] == 18
+    assert ev[0]["detalhe"]["orbe"] == 1957 and ev[-1]["detalhe"]["pendencias"] == 18
     assert db.ultima_execucao("2026-09")["status"] == "CONCLUIDA"
 
 

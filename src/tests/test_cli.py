@@ -52,7 +52,7 @@ def test_fechar_writes_the_checkout_outputs_and_they_reconcile(dados, tmp_path):
     por_linha = defaultdict(D)
     for c in comissoes:
         por_linha[c["linha_negocio"]] += D(c["comissao_brl"])
-    assert dict(por_linha) == {"CHECKOUT": D("207039.73"), "REMESSA": D("39543.45")}
+    assert dict(por_linha) == {"CHECKOUT": D("203735.34"), "REMESSA": D("39543.45")}
 
 
 def test_two_runs_produce_identical_files(dados, tmp_path):
@@ -127,7 +127,7 @@ def test_execution_log_reports_counts_ignored_rows_and_validations(dados, tmp_pa
     log = (tmp_path / "execucao.log").read_text(encoding="utf-8")
     for esperado in (
         "fechamento 2026-09",
-        "Orbe: 1943 linha(s), 1943 no mês, 0 fora do mês",
+        "Orbe: 1957 linha(s), 1957 no mês, 0 fora do mês",
         "Ponte: 233 linha(s), 233 no mês, 0 fora do mês",
         "Ponte: 2 linha(s) ignorada(s) (rodapé ou linha sem dado)",
         "Taxas: 1 linha(s) ignorada(s) (rodapé ou linha sem dado)",

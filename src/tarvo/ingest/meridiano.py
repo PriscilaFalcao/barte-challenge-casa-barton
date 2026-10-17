@@ -37,7 +37,7 @@ def _dec(texto: str | None, onde: str) -> Decimal:
         raise LayoutError(f"Meridiano: {onde}: valor inválido {texto!r}") from exc
 
 
-def ler_meridiano(path: Path) -> Extrato:
+def ler_meridiano(path: Path, arquivo: str = ARQUIVO) -> Extrato:
     texto = Path(path).read_bytes().decode("cp1252")
     if "<OFX>" not in texto.upper():
         raise LayoutError("Meridiano: arquivo não parece OFX (tag <OFX> ausente)")
@@ -65,7 +65,7 @@ def ler_meridiano(path: Path) -> Extrato:
         if (tipo == "CREDIT" and valor < 0) or (tipo == "DEBIT" and valor > 0):
             raise LayoutError(f"Meridiano: {onde}: TRNTYPE {tipo} com valor {valor}")
         descricao = c.get("MEMO") or c.get("NAME") or ""
-        lancamentos.append(Lancamento("MERIDIANO", fitid, _data(c["DTPOSTED"], onde), descricao, valor, ARQUIVO))
+        lancamentos.append(Lancamento("MERIDIANO", fitid, _data(c["DTPOSTED"], onde), descricao, valor, arquivo))
 
     m = re.search(r"<LEDGERBAL>.*?<BALAMT>([^<\r\n]*)", texto, flags=re.S | re.I)
     return Extrato(lancamentos, None, _dec(m.group(1).strip(), "LEDGERBAL") if m else None)

@@ -18,8 +18,8 @@ from pathlib import Path
 from .core.ids import norm_cnpj
 from .core.money import fmt
 from .estado.db import Estado
-from .ingest.plano_contas import ler_plano_contas
-from .pipeline import ARQUIVOS, _arquivo, fechar
+from .ingest.plano_contas import ler_planos
+from .pipeline import ARQUIVOS, _arquivos, fechar
 
 
 def _estado_padrao() -> Path:
@@ -66,7 +66,7 @@ def _cmd_decidir(a) -> None:
     if item is None:
         raise SystemExit(f"ERRO: {a.id} não está na fila de {a.mes}; rode `tarvo fila --mes {a.mes}`")
     if a.conta:
-        plano = ler_plano_contas(_arquivo(a.dados, ARQUIVOS["plano"]))
+        plano = ler_planos(_arquivos(a.dados, ARQUIVOS["plano"]))
         if a.conta not in plano or not plano[a.conta].analitica:
             raise SystemExit(f"ERRO: conta {a.conta} não existe no plano ou não aceita lançamento")
         if not item["id_saida"].startswith("PEN-CLASSIFICACAO") and a.escopo == "caso" \

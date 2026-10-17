@@ -103,7 +103,7 @@ def test_resumo_shows_merchant_name_for_grouped_pendings_and_escapes_pipes():
 
 def test_real_resumo_has_the_key_numbers(saida):
     txt = (saida / "resumo.md").read_text(encoding="utf-8")
-    for esperado in ("R$ 207.039,73", "R$ 39.543,45", "R$ 246.588,68", "R$ 15.397,42", "Pronto para fechar",
+    for esperado in ("R$ 203.735,34", "R$ 39.543,45", "R$ 243.284,29", "R$ 15.397,42", "Pronto para fechar",
                      "I-R1, I-R2, I-R3, I-D1, I-N1, I-C1 ok", "### Helena e Diego (2)", "### Diego (1)"):
         assert esperado in txt, esperado
 

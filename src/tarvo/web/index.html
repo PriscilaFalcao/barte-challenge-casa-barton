@@ -98,55 +98,61 @@
             <label class="batch-dropzone" id="batch-dropzone" for="batch-files" tabindex="0">
               <input id="batch-files" type="file" accept=".csv,.xlsx,.eml,.ofx" multiple>
               <span class="batch-upload-icon" aria-hidden="true">↑</span>
-              <span><strong>Solte os 6 arquivos aqui</strong> ou <span class="upload-link">selecione no computador</span></span>
+              <span><strong>Solte os arquivos do mês aqui</strong> ou <span class="upload-link">selecione no computador</span></span>
               <span class="batch-help">Identificamos o tipo pelo conteúdo e pelo formato esperado.</span>
             </label>
             <div class="upload-grid">
               <label class="file-card" data-slot="orbe">
-                <input type="file" accept=".csv">
+                <input type="file" accept=".csv" multiple>
                 <span class="file-icon" aria-hidden="true">CSV</span>
                 <span class="file-title">Relatório de comissões</span>
-                <span class="file-detail">Orbe · formato .csv</span>
-                <span class="file-name">Escolher arquivo</span>
+                <span class="file-detail">Orbe · .csv (relatório e ajustes tardios juntos)</span>
+                <span class="file-name">Escolher arquivo(s)</span>
+                <button class="file-clear" type="button" hidden>Limpar</button>
               </label>
               <label class="file-card" data-slot="taxas">
-                <input type="file" accept=".xlsx">
+                <input type="file" accept=".xlsx" multiple>
                 <span class="file-icon" aria-hidden="true">XLS</span>
                 <span class="file-title">Taxas contratadas</span>
                 <span class="file-detail">Planilha · formato .xlsx</span>
-                <span class="file-name">Escolher arquivo</span>
+                <span class="file-name">Escolher arquivo(s)</span>
+                <button class="file-clear" type="button" hidden>Limpar</button>
               </label>
               <label class="file-card" data-slot="ponte">
-                <input type="file" accept=".eml">
+                <input type="file" accept=".eml" multiple>
                 <span class="file-icon" aria-hidden="true">EML</span>
                 <span class="file-title">Relatório de remessas</span>
                 <span class="file-detail">Ponte Câmbio · formato .eml</span>
-                <span class="file-name">Escolher arquivo</span>
+                <span class="file-name">Escolher arquivo(s)</span>
+                <button class="file-clear" type="button" hidden>Limpar</button>
               </label>
               <label class="file-card" data-slot="plano">
-                <input type="file" accept=".csv">
+                <input type="file" accept=".csv" multiple>
                 <span class="file-icon" aria-hidden="true">CSV</span>
                 <span class="file-title">Plano de contas</span>
                 <span class="file-detail">ERP Fênix · formato .csv</span>
-                <span class="file-name">Escolher arquivo</span>
+                <span class="file-name">Escolher arquivo(s)</span>
+                <button class="file-clear" type="button" hidden>Limpar</button>
               </label>
               <label class="file-card" data-slot="aurora">
-                <input type="file" accept=".csv">
+                <input type="file" accept=".csv" multiple>
                 <span class="file-icon" aria-hidden="true">CSV</span>
                 <span class="file-title">Extrato bancário</span>
                 <span class="file-detail">Banco Aurora · formato .csv</span>
-                <span class="file-name">Escolher arquivo</span>
+                <span class="file-name">Escolher arquivo(s)</span>
+                <button class="file-clear" type="button" hidden>Limpar</button>
               </label>
               <label class="file-card" data-slot="meridiano">
-                <input type="file" accept=".ofx">
+                <input type="file" accept=".ofx" multiple>
                 <span class="file-icon" aria-hidden="true">OFX</span>
                 <span class="file-title">Extrato de remessas</span>
                 <span class="file-detail">Banco Meridiano · formato .ofx</span>
-                <span class="file-name">Escolher arquivo</span>
+                <span class="file-name">Escolher arquivo(s)</span>
+                <button class="file-clear" type="button" hidden>Limpar</button>
               </label>
             </div>
             <div class="actions-row">
-              <p class="helper-text" id="upload-status">Envie os 6 arquivos para continuar.</p>
+              <p class="helper-text" id="upload-status">Envie ao menos um arquivo de cada tipo para continuar.</p>
               <button class="button button-primary" id="validate-files" type="button" disabled>Conferir arquivos <span aria-hidden="true">→</span></button>
             </div>
           </section>

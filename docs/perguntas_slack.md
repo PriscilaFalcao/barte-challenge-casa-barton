@@ -476,8 +476,7 @@ Sobre a Atlas: o repasse não para. O dinheiro é do lojista, e o que fica suspe
 [Desbravadores Barte] Bom dia Leandro, tenho algumas dúvidas sobre os dados de outubro:
 1. O pacote de outubro vem completo (os 6 arquivos) ou só os que mudam? Mesmos nomes e formato de setembro? Há previsão de horário?
 2. Os resultados de outubro entram na avaliação? Na entrega, a saida/ deve ter só setembro ou também outubro? Em qual pasta?
-3. No pendencias.csv: (a) uma pendência pode listar vários ref_origem na mesma célula, separados por "|", ou deve ser uma linha por origem? (b) quem_decide é comparado por texto? Há valores esperados (nome da pessoa ou área)?
-4. Pendências de acompanhamento (ex.: "conferir o TED de repasse quando cair") contam como alarme falso?1 respostamanuel.freitas  [11h27]
+3. No pendencias.csv: (a) uma pendência pode listar vários ref_origem na mesma célula, separados por "|", ou deve ser uma linha por origem? (b) quem_decide é comparado por texto? Há valores esperados (nome da pessoa ou área)? 4. Pendências de acompanhamento (ex.: "conferir o TED de repasse quando cair") contam como alarme falso?1 respostamanuel.freitas  [11h27]
 [Logística] Resposta para Desbravadores, da Organização
 
 Não vai ter pacote de outubro. “Rodar em outubro” quer dizer que a solução tem que servir para o mês que vem: receber arquivos novos no mesmo formato e gerar o fechamento sem ninguém mexer no código. A banca vai rodar a solução de vocês com os arquivos do case, inclusive os que chegarem durante o dia.

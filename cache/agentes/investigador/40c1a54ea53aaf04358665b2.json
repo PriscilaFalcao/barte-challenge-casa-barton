@@ -1,0 +1,138 @@
+{
+  "agente": "investigador",
+  "entrada": {
+    "evidencias": [
+      {
+        "data": "2026-09-10",
+        "descricao": "PIX ENVIADO ATLAS IDIOMAS LTDA",
+        "fonte": "AURORA",
+        "ref": "L34",
+        "valor": "-112220.15"
+      },
+      {
+        "data": "2026-09-15",
+        "descricao": "ANTECIPACAO ATLAS IDIOMAS",
+        "fonte": "ORBE",
+        "ref": "AN88445637",
+        "valor": "52361.86"
+      },
+      {
+        "data": "2026-09-15",
+        "descricao": "ANTECIPACAO ATLAS IDIOMAS",
+        "fonte": "ORBE",
+        "ref": "AN88445646",
+        "valor": "22223.80"
+      },
+      {
+        "data": "2026-09-15",
+        "descricao": "ANTECIPACAO ATLAS IDIOMAS",
+        "fonte": "ORBE",
+        "ref": "AN88445703",
+        "valor": "51942.03"
+      },
+      {
+        "data": "2026-09-15",
+        "descricao": "ANTECIPACAO ATLAS IDIOMAS",
+        "fonte": "ORBE",
+        "ref": "AN88445766",
+        "valor": "53065.13"
+      },
+      {
+        "data": "2026-09-17",
+        "descricao": "REVERSAO_ANTECIPACAO ATLAS IDIOMAS",
+        "fonte": "ORBE",
+        "ref": "AN88446030",
+        "valor": "-52361.86"
+      },
+      {
+        "data": "2026-09-22",
+        "descricao": "PIX ENVIADO ATLAS IDIOMAS LTDA",
+        "fonte": "AURORA",
+        "ref": "L60",
+        "valor": "-137081.62"
+      },
+      {
+        "data": "2026-09-24",
+        "descricao": "ANTECIPACAO ATLAS IDIOMAS",
+        "fonte": "ORBE",
+        "ref": "AN88446517",
+        "valor": "56350.28"
+      },
+      {
+        "data": "2026-09-26",
+        "descricao": "REVERSAO_ANTECIPACAO ATLAS IDIOMAS",
+        "fonte": "ORBE",
+        "ref": "AN88446660",
+        "valor": "-56350.28"
+      }
+    ],
+    "pendencia": {
+      "motivo": "Atlas Idiomas (EC 1076801732) sem contrato antecipou R$ 127230.96 líquidos no mês (7 linha(s), reversões abatidas). Em 15/09 antecipou R$ 179592.82 com R$ 55357.50 de vendas líquidas no mês até o dia. Não há trava de antecipação; avisar a Helena e o comercial.",
+      "ref_origem": "1076801732",
+      "tipo": "ALERTA_ANTECIPACAO",
+      "valor_brl": "127230.96"
+    },
+    "resumo_orbe_da_contraparte": {
+      "ANTECIPACAO": {
+        "bruto": "235943.10",
+        "linhas": 5,
+        "primeira": "2026-09-15",
+        "ultima": "2026-09-24"
+      },
+      "ESTORNO": {
+        "bruto": "-521.25",
+        "linhas": 1,
+        "primeira": "2026-09-24",
+        "ultima": "2026-09-24"
+      },
+      "REVERSAO_ANTECIPACAO": {
+        "bruto": "-108712.14",
+        "linhas": 2,
+        "primeira": "2026-09-17",
+        "ultima": "2026-09-26"
+      },
+      "VENDA": {
+        "bruto": "135428.90",
+        "linhas": 49,
+        "primeira": "2026-09-10",
+        "ultima": "2026-09-30"
+      }
+    }
+  },
+  "modelo": "claude-sonnet-5-5",
+  "saida": {
+    "hipoteses": [
+      {
+        "descricao": "A Atlas Idiomas pode ter pedido antecipação diretamente à Orbe, sem contrato com a Tarvo e sem trava. Isso explicaria as quatro antecipações de 15/09 (soma de R$ 179.592,82) muito acima das vendas líquidas do período, e a de 24/09.",
+        "evidencia_refs": [
+          "AN88445637",
+          "AN88445646",
+          "AN88445703",
+          "AN88445766",
+          "AN88446517"
+        ],
+        "plausibilidade": "alta"
+      },
+      {
+        "descricao": "As reversões de 17/09 e 26/09 indicam que parte das antecipações foi desfeita, talvez por correção manual ou pedido do lojista. Cada reversão coincide com o valor exato de uma antecipação anterior, mas só duas das cinco foram revertidas, então o saldo líquido continua alto.",
+        "evidencia_refs": [
+          "AN88446030",
+          "AN88446660",
+          "AN88445637",
+          "AN88446517"
+        ],
+        "plausibilidade": "media"
+      },
+      {
+        "descricao": "Os repasses por PIX de 10/09 e 22/09 podem ter coberto valores que depois foram antecipados na Orbe, gerando risco de pagamento em duplicidade ao lojista. As evidências não mostram vínculo direto entre esses PIX e as antecipações.",
+        "evidencia_refs": [
+          "L34",
+          "L60"
+        ],
+        "plausibilidade": "baixa"
+      }
+    ],
+    "pergunta_sugerida": "A Atlas Idiomas tem autorização comercial para antecipar recebíveis na Orbe, e o repasse por PIX de 22/09 já considerou as antecipações de 15/09 que seguem sem reversão?",
+    "quem_decide_sugerido": "Comercial, com o financeiro (Helena)"
+  }
+}

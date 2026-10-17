@@ -245,6 +245,12 @@ Q1 a Q4 foram planejadas no checkpoint 1. As respostas vieram de perguntas parec
   - Vigência: aceita data, "até dd/mm/aaaa" e "a partir de dd/mm/aaaa"; sem vigência = sempre.
   - Lojista com Obs "INATIVO" é ignorado.
   - Linha sem nome de lojista mas com CNPJ, EC ou taxa **falha** (não é tratada como rodapé). Só a nota de rodapé (`*`) e linhas em branco são puladas.
+- **Ajustes tardios da Orbe (`06_*.csv`):**
+  - Chegam "quando a Orbe tem ajuste, não todo mês" (✅ Helena 13h34): o arquivo é **opcional**, zero ou mais por mês, no mesmo formato do 01. O fechamento lê todo `06_*.csv` da pasta e soma às linhas do 01; nada fixo para setembro.
+  - Entra no mês do **movimento** (`data_movimento`), como todas as linhas. Ajuste que chega antes da aprovação cai no mês dele; o que chega depois de o mês ser aprovado cai no mês seguinte (✅ Helena 13h34).
+  - Mesmo `id_transacao` em dois arquivos (correção de uma linha; nunca aconteceu, em setembro são 0): ⚠️ **a mais recente permanece e a mais antiga sai**. Mais recente = maior `data_movimento`; em empate, a do arquivo que veio depois (o ajuste vale sobre o relatório). O critério é nosso (✅ Helena: "o critério é de vocês, mostrem a pendência para mim"), então cada troca vira pendência `LINHA_ORBE_SUBSTITUIDA` (quem decide: Helena, não bloqueante), com as duas linhas no motivo. O rastro da pendência aponta para a linha que saiu; o cálculo e o rastro das comissões e divergências apontam para a que ficou, com o nome do arquivo de origem real.
+  - Mesmo id repetido dentro de um único arquivo continua sendo erro de layout.
+- **Mais de um arquivo por fonte (⚠️ nossa premissa):** cada fonte pode chegar em vários arquivos no mês, achados pelo prefixo (`01_`/`06_` Orbe, `02_`, `03_`, `04_`, `05a_`, `05b_`) e somados; o rastro aponta para o arquivo real de cada linha. Orbe: ver acima. Ponte: a operação repetida entre arquivos conta uma vez (R6) e entra na contestação. Extratos: os lançamentos se somam e a cadeia de saldos é conferida dentro de cada arquivo; FITID repetido entre dois OFX falha (extratos sobrepostos). Plano de contas: as contas se somam; a mesma conta em dois arquivos falha. Taxas: as linhas se somam e o resolvedor trata conflito de vigência como contrato ambíguo.
 - **Encodings explícitos:**
   - Orbe: ASCII/UTF-8.
   - Aurora: UTF-8.

@@ -41,3 +41,14 @@ def ler_plano_contas(path: Path) -> dict[str, Conta]:
             raise LayoutError(f"Plano de contas: conta {codigo} repetida (linha {i})")
         contas[codigo] = Conta(codigo, linha[cab["descricao"]].strip(), aceita == "S")
     return contas
+
+
+def ler_planos(paths: list[Path]) -> dict[str, Conta]:
+    """Mais de um export do plano no mês: as contas se somam; a mesma conta em dois arquivos é erro."""
+    contas: dict[str, Conta] = {}
+    for p in paths:
+        for codigo, conta in ler_plano_contas(p).items():
+            if codigo in contas:
+                raise LayoutError(f"Plano de contas: conta {codigo} repetida entre arquivos ({p.name})")
+            contas[codigo] = conta
+    return contas

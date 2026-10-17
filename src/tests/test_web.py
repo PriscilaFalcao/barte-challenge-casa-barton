@@ -12,10 +12,6 @@ from urllib.request import Request, urlopen
 import pytest
 import tarvo.web as web
 from tarvo.pipeline import fechar
-from tarvo.ingest.aurora import ARQUIVO as ARQUIVO_AURORA
-from tarvo.ingest.meridiano import ARQUIVO as ARQUIVO_MERIDIANO
-from tarvo.ingest.orbe import ARQUIVO as ARQUIVO_ORBE
-from tarvo.ingest.ponte import ARQUIVO as ARQUIVO_PONTE
 from tarvo.web import _SLOTS, _format_brl, _original_row, _summary
 
 
@@ -25,7 +21,7 @@ def test_web_summary_matches_real_pipeline_outputs(dados, tmp_path):
 
     summary = _summary(output)
 
-    assert summary["checkout"] == "R$ 207.039,73"
+    assert summary["checkout"] == "R$ 203.735,34"
     assert summary["remessa"] == "R$ 39.543,45"
     assert summary["divergences_count"] == 233
     assert summary["notes_count"] == 21
@@ -44,16 +40,18 @@ def test_detail_lookup_returns_original_rows_for_pipeline_sources(dados, tmp_pat
     input_dir = closure_dir / "dados"
     input_dir.mkdir(parents=True)
     source_files = {
-        "orbe": (ARQUIVO_ORBE, "01_*.csv", "AN88445172"),
-        "ponte": (ARQUIVO_PONTE, "03_*.eml", "PC-0926-0023"),
-        "aurora": (ARQUIVO_AURORA, "05a_*.csv", "L10"),
-        "meridiano": (ARQUIVO_MERIDIANO, "05b_*.ofx", "MRD2026090003"),
+        "orbe": ("01_*.csv", "AN88445172"),
+        "ponte": ("03_*.eml", "PC-0926-0023"),
+        "aurora": ("05a_*.csv", "L10"),
+        "meridiano": ("05b_*.ofx", "MRD2026090003"),
+        "ajustes": ("06_*.csv", "TX88447225"),  # linha vinda do 06, outro arquivo do mesmo campo da Orbe
     }
-    for slot, (_, pattern, _) in source_files.items():
-        copyfile(next(dados.glob(pattern)), input_dir / _SLOTS[slot][1])
+    for pattern, _ in source_files.values():
+        source = next(dados.glob(pattern))
+        copyfile(source, input_dir / source.name)
 
-    for slot, (source_name, _, reference) in source_files.items():
-        row = _original_row(closure_dir, source_name, reference)
+    for pattern, reference in source_files.values():
+        row = _original_row(closure_dir, next(dados.glob(pattern)).name, reference)
         assert row is not None
         assert reference in row.values()
 
@@ -171,3 +169,38 @@ def test_web_end_to_end_events_decisions_and_close_gate(dados, web_server):
     assert closed["closure_record"]["files_sha256"]["pendencias.csv"] == hashlib.sha256(original_pending).hexdigest()
     status, table = _http_json(f"{web_server}/api/closures/{closure_id}/tables/pendencias")
     assert status == 200 and len(table["rows"]) == 18
+
+
+def test_web_campo_aceita_varios_arquivos_e_o_orbe_junta_relatorio_e_ajustes(dados, web_server):
+    status, closure = _http_json(f"{web_server}/api/closures", {"month": "2026-09"})
+    closure_id = closure["id"]
+    url = f"{web_server}/api/closures/{closure_id}/files"
+
+    def enviar(slot, source, metodo="POST"):
+        request = Request(f"{url}/{slot}", data=source.read_bytes(), method=metodo,
+                          headers={"X-Filename": quote(source.name), "Content-Type": "application/octet-stream"})
+        with urlopen(request, timeout=10) as response:
+            return json.loads(response.read())
+
+    for slot, pattern in {"orbe": "01_*.csv", "taxas": "02_*.xlsx", "ponte": "03_*.eml", "plano": "04_*.csv",
+                          "aurora": "05a_*.csv", "meridiano": "05b_*.ofx"}.items():
+        enviar(slot, next(dados.glob(pattern)))
+    estado = enviar("orbe", next(dados.glob("06_*.csv")))  # o 06 vai no mesmo campo do 01
+    assert [n[:3] for n in estado["files"]["orbe"]] == ["01_", "06_"]
+
+    status, validation = _http_json(f"{web_server}/api/closures/{closure_id}/validate", method="POST")
+    assert status == 200 and validation["summary"]["checkout"] == "R$ 203.735,34"
+
+
+def test_web_limpar_campo_remove_os_arquivos_e_bloqueia_a_validacao(dados, web_server):
+    status, closure = _http_json(f"{web_server}/api/closures", {"month": "2026-09"})
+    url = f"{web_server}/api/closures/{closure['id']}/files/orbe"
+    source = next(dados.glob("01_*.csv"))
+    request = Request(url, data=source.read_bytes(), method="POST",
+                      headers={"X-Filename": quote(source.name), "Content-Type": "application/octet-stream"})
+    with urlopen(request, timeout=10):
+        pass
+    status, estado = _http_json(url, method="DELETE")
+    assert status == 200 and "orbe" not in estado["files"]
+    status, erro = _http_json(f"{web_server}/api/closures/{closure['id']}/validate", method="POST")
+    assert status == 409 and "Orbe" in erro["error"]

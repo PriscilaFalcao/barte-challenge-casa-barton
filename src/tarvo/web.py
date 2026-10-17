@@ -20,31 +20,48 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 import openpyxl
 from .ingest.erros import LayoutError
-from .ingest.aurora import ARQUIVO as ARQUIVO_AURORA
-from .ingest.meridiano import ARQUIVO as ARQUIVO_MERIDIANO
-from .ingest.orbe import ARQUIVO as ARQUIVO_ORBE
-from .ingest.ponte import ARQUIVO as ARQUIVO_PONTE
-from .ingest.taxas import ARQUIVO as ARQUIVO_TAXAS
 from .ingest.texto import norm_texto
 from .core.ids import norm_cnpj
 from .estado.db import Estado, RESOLVIDA
-from .ingest.plano_contas import ler_plano_contas
+from .ingest.plano_contas import ler_planos
 from .output.validators import ValidationError
-from .pipeline import fechar
+from .pipeline import ARQUIVOS, _arquivos, fechar
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _WEB_ROOT = Path(__file__).resolve().parent / "web"
 _DATA_ROOT = _PROJECT_ROOT / "data" / "web"
 _MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 _MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
+# Cada campo aceita um ou mais arquivos. O arquivo é guardado com o nome enviado; se faltar o prefixo que o
+# pipeline usa para achar a fonte (01_/06_ Orbe, 02_, 03_, 04_, 05a_, 05b_), ele é acrescentado.
 _SLOTS = {
-    "orbe": (".csv", "01_upload.csv"),
-    "taxas": (".xlsx", "02_upload.xlsx"),
-    "ponte": (".eml", "03_upload.eml"),
-    "plano": (".csv", "04_upload.csv"),
-    "aurora": (".csv", "05a_upload.csv"),
-    "meridiano": (".ofx", "05b_upload.ofx"),
+    "orbe": (".csv", "01_"),
+    "taxas": (".xlsx", "02_"),
+    "ponte": (".eml", "03_"),
+    "plano": (".csv", "04_"),
+    "aurora": (".csv", "05a_"),
+    "meridiano": (".ofx", "05b_"),
 }
+
+
+def _stored_name(slot: str, filename: str) -> str:
+    prefixes = tuple(p.split("*")[0] for p in ARQUIVOS[slot])
+    return filename if filename.startswith(prefixes) else _SLOTS[slot][1] + filename
+
+
+def _slot_of(file_name: str) -> str | None:
+    """Campo a que um arquivo guardado pertence (o inverso de _stored_name), pelo prefixo e pela extensão."""
+    suffix = Path(file_name).suffix.lower()
+    for slot, (extension, _) in _SLOTS.items():
+        if suffix == extension and any(file_name.startswith(p.split("*")[0]) for p in ARQUIVOS[slot]):
+            return slot
+    return None
+
+
+def _slot_paths(closure_dir: Path, slot: str) -> list[Path]:
+    return _arquivos(closure_dir / "dados", ARQUIVOS[slot])
+
+
 _TABLES = {
     "comissoes": "comissoes_por_lojista.csv",
     "divergencias": "divergencias_taxa.csv",
@@ -70,17 +87,10 @@ def _cell_value(value: object) -> str:
 
 
 def _original_row(closure_dir: Path, source_name: str, reference: str) -> dict[str, str] | None:
-    source_slots = {
-        ARQUIVO_ORBE: "orbe",
-        ARQUIVO_TAXAS: "taxas",
-        ARQUIVO_PONTE: "ponte",
-        ARQUIVO_AURORA: "aurora",
-        ARQUIVO_MERIDIANO: "meridiano",
-    }
-    slot = source_slots.get(source_name)
-    if slot is None:
+    source_path = closure_dir / "dados" / source_name  # o rastro guarda o nome do arquivo de origem
+    slot = _slot_of(source_name)
+    if slot is None or slot == "plano" or not source_path.is_file():
         return None
-    source_path = closure_dir / "dados" / _SLOTS[slot][1]
 
     if slot == "orbe":
         for row in _read_csv(source_path):
@@ -228,7 +238,10 @@ def _load_state(closure_id: str) -> tuple[Path, dict]:
     if not state_path.is_file():
         raise FileNotFoundError("Fechamento não encontrado.")
     with state_path.open(encoding="utf-8") as source:
-        return closure_dir, json.load(source)
+        state = json.load(source)
+    state["files"] = {slot: [names] if isinstance(names, str) else names  # estado antigo: um nome por campo
+                      for slot, names in state.get("files", {}).items()}
+    return closure_dir, state
 
 
 def _save_state(closure_dir: Path, state: dict) -> None:
@@ -243,7 +256,7 @@ def _response_state(closure_dir: Path, state: dict) -> dict:
         "id": state["id"],
         "month": state["month"],
         "status": state["status"],
-        "files": state["files"],
+        "files": {slot: names for slot, names in state["files"].items() if names},
         "validation_error": state.get("validation_error"),
         "validated": bool(state.get("validated")),
         "execution_id": state.get("execution_id"),
@@ -304,6 +317,34 @@ class _Handler(BaseHTTPRequestHandler):
             self._download(match.group(1), match.group(2))
             return
         self._json({"error": "Endereço não encontrado."}, 404)
+
+    def do_DELETE(self) -> None:
+        request = urlsplit(self.path)
+        slots = "|".join(_SLOTS)
+        match = re.fullmatch(rf"/api/closures/([0-9a-f-]{{36}})/files/({slots})", request.path)
+        if match is None:
+            self._json({"error": "Endereço não encontrado."}, 404)
+            return
+        self._remove_file(match.group(1), match.group(2), parse_qs(request.query).get("name", [None])[0])
+
+    def _remove_file(self, closure_id: str, slot: str, name: str | None) -> None:
+        try:
+            closure_dir, state = _load_state(closure_id)
+        except FileNotFoundError as exc:
+            self._json({"error": str(exc)}, 404)
+            return
+        if state["status"] != "uploading":
+            self._json({"error": "Os arquivos só podem ser alterados antes da pré-validação."}, 409)
+            return
+        names = state["files"].get(slot, [])
+        if name is not None and name not in names:
+            self._json({"error": "Arquivo não encontrado neste campo."}, 404)
+            return
+        for removed in ([name] if name is not None else list(names)):  # sem nome: esvazia o campo
+            (closure_dir / "dados" / _stored_name(slot, removed)).unlink(missing_ok=True)
+            names.remove(removed)
+        _save_state(closure_dir, state)
+        self._json(_response_state(closure_dir, state))
 
     def do_POST(self) -> None:
         request = urlsplit(self.path)
@@ -420,14 +461,16 @@ class _Handler(BaseHTTPRequestHandler):
             self._json({"error": "O arquivo precisa ter conteúdo e não pode ultrapassar 25 MB."}, 413)
             return
         filename = unquote(self.headers.get("X-Filename", ""))
-        expected_extension, stored_name = _SLOTS[slot]
+        expected_extension = _SLOTS[slot][0]
         if not filename or Path(filename).name != filename or Path(filename).suffix.lower() != expected_extension:
             self._json({"error": f"Este campo aceita somente arquivos {expected_extension}."}, 415)
             return
         body = self.rfile.read(length)
-        target = closure_dir / "dados" / stored_name
+        target = closure_dir / "dados" / _stored_name(slot, filename)
         target.write_bytes(body)
-        state["files"][slot] = filename
+        names = state["files"].setdefault(slot, [])
+        if filename not in names:  # o mesmo nome enviado de novo substitui o arquivo
+            names.append(filename)
         _save_state(closure_dir, state)
         self._json(_response_state(closure_dir, state))
 
@@ -440,7 +483,7 @@ class _Handler(BaseHTTPRequestHandler):
         if state["status"] != "uploading":
             self._json({"error": "A pré-validação só pode ser feita durante o envio dos arquivos."}, 409)
             return
-        missing = [slot for slot in _SLOTS if slot not in state["files"]]
+        missing = [slot for slot in _SLOTS if not state["files"].get(slot)]
         if missing:
             labels = {
                 "orbe": "relatório Orbe",
@@ -561,11 +604,11 @@ class _Handler(BaseHTTPRequestHandler):
         except FileNotFoundError as exc:
             self._json({"error": str(exc)}, 404)
             return
-        if "plano" not in state["files"]:
+        if not state["files"].get("plano"):
             self._json({"error": "Envie o plano de contas antes de consultar as contas."}, 409)
             return
         try:
-            accounts = ler_plano_contas(closure_dir / "dados" / _SLOTS["plano"][1])
+            accounts = ler_planos(_slot_paths(closure_dir, "plano"))
         except (LayoutError, OSError, UnicodeError) as exc:
             self._json({"error": f"Não foi possível ler o plano de contas: {exc}"}, 422)
             return
@@ -678,7 +721,7 @@ class _Handler(BaseHTTPRequestHandler):
                 if not isinstance(account_code, str) or not account_code.strip():
                     self._json({"error": "Selecione uma conta analítica."}, 400)
                     return
-                accounts = ler_plano_contas(closure_dir / "dados" / _SLOTS["plano"][1])
+                accounts = ler_planos(_slot_paths(closure_dir, "plano"))
                 account = accounts.get(account_code)
                 if account is None or not account.analitica:
                     self._json({"error": "A conta selecionada não existe ou não aceita lançamentos."}, 422)

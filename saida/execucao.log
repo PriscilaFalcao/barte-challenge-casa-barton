@@ -1,7 +1,8 @@
 fechamento 2026-09
-arquivos: 01_orbe_relatorio_comissoes_set2026.csv, 02_tabela_taxas_contratadas.xlsx, 03_email_ponte_cambio_relatorio_set2026.eml, 04_plano_de_contas_fenix_erp.csv, 05a_extrato_banco_aurora_cc4471_set2026.csv, 05b_extrato_banco_meridiano_cc90233_set2026.ofx
-Orbe: 1943 linha(s), 1943 no mês, 0 fora do mês
+arquivos: 01_orbe_relatorio_comissoes_set2026.csv, 06_orbe_ajustes_tardios_set2026.csv, 02_tabela_taxas_contratadas.xlsx, 03_email_ponte_cambio_relatorio_set2026.eml, 04_plano_de_contas_fenix_erp.csv, 05a_extrato_banco_aurora_cc4471_set2026.csv, 05b_extrato_banco_meridiano_cc90233_set2026.ofx
+Orbe: 1957 linha(s), 1957 no mês, 0 fora do mês
 Ponte: 233 linha(s), 233 no mês, 0 fora do mês
+Orbe: 2 arquivo(s) somados (01_orbe_relatorio_comissoes_set2026.csv, 06_orbe_ajustes_tardios_set2026.csv); 0 linha(s) com id repetido (a mais recente permanece, a mais antiga sai)
 Taxas: 25 linha(s) de contrato
 Plano de contas: 52 conta(s), 32 analítica(s)
 Aurora: 84 lançamento(s); cadeia de saldos fecha (R$ 612334.81 -> R$ -1920088.60)
@@ -12,7 +13,7 @@ Aurora: 1 linha(s) ignorada(s) (rodapé ou linha sem dado); ex.: L95
 Aurora: 2 linha(s) ignorada(s) (saldo anterior ou final); ex.: L8, L94
 Ponte: 2 linha(s) ignorada(s) (rodapé ou linha sem dado); ex.: L240, L241
 Taxas: 1 linha(s) ignorada(s) (rodapé ou linha sem dado); ex.: Taxas!L32
-agentes: 4 exceção(ões) roteada(s), 4 com resposta, 0 aplicada(s)
+agentes: 4 exceção(ões) roteada(s), 0 com resposta, 0 aplicada(s)
 decisões humanas aplicadas: 0; regras promovidas ativas: 0
 validação: I-R1, I-R2, I-R3, I-D1, I-N1, I-C1 ok
 comissoes_por_lojista: 35 linha(s)
@@ -30,4 +31,4 @@ pendencias: 18 linha(s), 0 bloqueante(s)
   LANCAMENTO_SEM_ORIGEM: 1
   REPASSE_ATIPICO: 1
   SEM_CONTRATO: 1
-rastro: 5062 linha(s)
+rastro: 5090 linha(s)

@@ -14,7 +14,6 @@ from ..core.ids import id_comissao
 from ..core.money import fmt, fmt_pct, round_money
 from ..core.rastro import Rastro
 from ..identity.registro import Registro
-from ..ingest.orbe import ARQUIVO as ARQUIVO_ORBE
 from ..ingest.orbe import OrbeTx
 
 
@@ -67,7 +66,7 @@ def _pendencia(res: ResultadoCheckout, rastro: Rastro, tipo: TipoExcecao, ref: s
     exc = Excecao.nova(tipo, ref, sum((t.valor_taxa for t in txs), Decimal("0")), motivo)
     res.excecoes.append(exc)
     for t in txs:
-        rastro.add(exc.id_saida, ARQUIVO_ORBE, t.id_transacao, t.valor_taxa)
+        rastro.add(exc.id_saida, t.arquivo, t.id_transacao, t.valor_taxa)
 
 
 def _alerta_antecipacao(res: ResultadoCheckout, rastro: Rastro, ec: str, nome: str | None,
@@ -97,7 +96,7 @@ def _alerta_antecipacao(res: ResultadoCheckout, rastro: Rastro, ec: str, nome: s
         f"e o comercial.")
     res.excecoes.append(exc)
     for t in sorted(antecip, key=lambda t: t.id_transacao):
-        rastro.add(exc.id_saida, ARQUIVO_ORBE, t.id_transacao, t.valor_bruto, "ANTECIPACAO", "", "P8")
+        rastro.add(exc.id_saida, t.arquivo, t.id_transacao, t.valor_bruto, "ANTECIPACAO", "", "P8")
 
 
 def calcular_checkout(txs: list[OrbeTx], registro: Registro, resolvedor: Resolvedor,
@@ -135,7 +134,7 @@ def calcular_checkout(txs: list[OrbeTx], registro: Registro, resolvedor: Resolve
         nomes[loj.cnpj14] = loj.nome_canonico
         totais[loj.cnpj14] += comissao
         id_saida = id_comissao("CHECKOUT", loj.cnpj14, mes)
-        rastro.add(id_saida, ARQUIVO_ORBE, tx.id_transacao, comissao, componente,
+        rastro.add(id_saida, tx.arquivo, tx.id_transacao, comissao, componente,
                    fmt_pct(taxa.pct), linha.regra_id)
 
     for cnpj14 in sorted(totais):

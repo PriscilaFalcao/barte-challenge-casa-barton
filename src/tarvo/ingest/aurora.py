@@ -39,7 +39,7 @@ def _valor(texto: str, onde: str) -> Decimal | None:
         raise LayoutError(f"Aurora: {onde}: valor inválido {texto!r}") from exc
 
 
-def ler_aurora(path: Path, ledger: Ledger | None = None) -> Extrato:
+def ler_aurora(path: Path, ledger: Ledger | None = None, arquivo: str = ARQUIVO) -> Extrato:
     texto = Path(path).read_bytes().decode("utf-8-sig")
     linhas = list(csv.reader(io.StringIO(texto), delimiter=";"))
     cab = next((i for i, l in enumerate(linhas) if l and norm_texto(l[0]) == "data"
@@ -94,7 +94,7 @@ def ler_aurora(path: Path, ledger: Ledger | None = None) -> Extrato:
             saldo = saldo_linha
         elif saldo is not None:
             saldo += valor
-        lancamentos.append(Lancamento("AURORA", ref, _data(dia_txt, ref), desc, valor, ARQUIVO))
+        lancamentos.append(Lancamento("AURORA", ref, _data(dia_txt, ref), desc, valor, arquivo))
     if saldo_final is not None and saldo is not None and saldo_final != saldo:
         raise LayoutError(f"Aurora: SALDO FINAL R$ {fmt(saldo_final)} difere do último saldo R$ {fmt(saldo)}")
     return Extrato(lancamentos, saldo_inicial, saldo_final)

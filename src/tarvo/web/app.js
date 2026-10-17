@@ -294,15 +294,19 @@ function closeDrawer() {
 
 function updateFileStatus() {
   const cards = [...document.querySelectorAll(".file-card")];
-  const complete = cards.every(card => state.files[card.dataset.slot]);
+  const filesOf = card => state.files[card.dataset.slot] || [];
+  const complete = cards.every(card => filesOf(card).length > 0);
+  const total = cards.reduce((sum, card) => sum + filesOf(card).length, 0);
   cards.forEach(card => {
-    const filename = state.files[card.dataset.slot];
-    card.classList.toggle("has-file", Boolean(filename));
-    card.querySelector(".file-name").textContent = filename || "Escolher arquivo";
+    const names = filesOf(card);
+    card.classList.toggle("has-file", names.length > 0);
+    card.querySelector(".file-name").textContent = names.length ? names.join(", ") : "Escolher arquivo(s)";
+    card.querySelector(".file-clear").hidden = names.length === 0;
   });
+  const missing = cards.filter(card => !filesOf(card).length).length;
   document.querySelector("#upload-status").textContent = complete
-    ? "6 de 6 arquivos enviados. Pronto para conferir."
-    : `${Object.keys(state.files).length} de 6 arquivos enviados.`;
+    ? `${total} arquivo${total === 1 ? "" : "s"} enviado${total === 1 ? "" : "s"}. Pronto para conferir.`
+    : `${total} arquivo${total === 1 ? "" : "s"} enviado${total === 1 ? "" : "s"}; falta${missing === 1 ? "" : "m"} ${missing} tipo${missing === 1 ? "" : "s"} de arquivo.`;
   document.querySelector("#validate-files").disabled = !complete;
 }
 
@@ -318,7 +322,7 @@ async function identifyFile(file) {
   if (extension !== ".csv") throw new Error(`${file.name}: formato não aceito. Envie .csv, .xlsx, .eml ou .ofx.`);
 
   const headerText = normalizeHeader(await file.slice(0, 8192).text());
-  if (headerText.includes("ID_TRANSACAO;DATA_MOVIMENTO;")) return "orbe";
+  if (headerText.includes("ID_TRANSACAO;DATA_MOVIMENTO;")) return "orbe"; // relatório e ajustes tardios: mesmo formato
   if (headerText.split(/\r?\n/).some(line => line.startsWith("COD_CONTA;DESCRICAO;"))) return "plano";
   if (headerText.split(/\r?\n/).some(line => /^DATA;LANCAMENTO;/.test(line))) return "aurora";
   throw new Error(`${file.name}: não identifiquei o conteúdo deste CSV. Confira se é Orbe, plano de contas ou extrato Aurora.`);
@@ -336,16 +340,9 @@ async function uploadFile(file, slot) {
 
 async function uploadBatch(fileList) {
   const files = [...fileList];
-  const assignedSlots = new Set();
-  for (const file of files) {
-    const slot = await identifyFile(file);
-    if (assignedSlots.has(slot)) throw new Error(`Mais de um arquivo enviado para o campo ${slot}. Envie apenas um de cada tipo.`);
-    assignedSlots.add(slot);
-  }
-  for (const file of files) {
-    const slot = await identifyFile(file);
-    await uploadFile(file, slot);
-  }
+  const slots = [];
+  for (const file of files) slots.push(await identifyFile(file)); // identifica todos antes de enviar qualquer um
+  for (const [index, file] of files.entries()) await uploadFile(file, slots[index]);
   notice.hidden = true;
 }
 
@@ -789,15 +786,31 @@ document.querySelector("#month-form").addEventListener("submit", event => {
 });
 document.querySelectorAll(".file-card input").forEach(input => {
   input.addEventListener("change", async () => {
-    const file = input.files[0];
+    const files = [...input.files];
     const slot = input.closest(".file-card").dataset.slot;
-    if (!file) return;
+    if (!files.length) return;
     try {
-      await uploadFile(file, slot);
+      for (const file of files) await uploadFile(file, slot);
       notice.hidden = true;
     } catch (error) {
       showNotice(error.message);
       input.value = "";
+    }
+  });
+});
+document.querySelectorAll(".file-clear").forEach(button => {
+  button.addEventListener("click", async event => {
+    event.preventDefault();
+    event.stopPropagation();
+    const slot = button.closest(".file-card").dataset.slot;
+    try {
+      const result = await request(`/api/closures/${state.closureId}/files/${slot}`, { method: "DELETE" });
+      state.files = result.files;
+      button.closest(".file-card").querySelector("input").value = "";
+      updateFileStatus();
+      notice.hidden = true;
+    } catch (error) {
+      showNotice(error.message);
     }
   });
 });

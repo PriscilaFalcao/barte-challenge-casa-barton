@@ -20,6 +20,7 @@ from .agents.orquestrador import Contexto, ResultadoAgentes, orquestrar
 from .config import construir_config, ler_yaml, mesclar_promovidas
 from .contracts.resolver import Resolvedor
 from .core.competencia import no_mes
+from .core.excecoes import Excecao, TipoExcecao
 from .core.ledger import Ledger
 from .core.money import fmt
 from .core.rastro import LinhaRastro, Rastro
@@ -33,20 +34,20 @@ from .estado.db import Estado
 from .identity.registro import Registro
 from .ingest.aurora import ler_aurora
 from .ingest.erros import LayoutError
+from .ingest.extrato import Extrato
 from .ingest.meridiano import ler_meridiano
-from .ingest.orbe import ARQUIVO as ARQUIVO_ORBE
-from .ingest.orbe import ler_orbe
-from .ingest.plano_contas import ler_plano_contas
-from .ingest.ponte import ARQUIVO as ARQUIVO_PONTE
+from .ingest.orbe import Substituicao, ler_orbe, unir_orbe
+from .ingest.plano_contas import ler_planos
 from .ingest.ponte import ler_ponte
-from .ingest.taxas import ARQUIVO as ARQUIVO_TAXAS
 from .ingest.taxas import ler_taxas
 from .output.resumo import gerar_resumo
 from .output.validators import validar_i_c1, validar_i_d1, validar_i_n1, validar_i_r1, validar_i_r2, validar_i_r3
 from .output.writers import escrever_csv, escrever_rastro
 
-ARQUIVOS = {"orbe": "01_*.csv", "taxas": "02_*.xlsx", "ponte": "03_*.eml", "plano": "04_*.csv",
-            "aurora": "05a_*.csv", "meridiano": "05b_*.ofx"}
+# Cada fonte pode vir em mais de um arquivo no mês (padrões por prefixo, ordenados pelo nome). Na Orbe, o 01 é o
+# relatório e o 06 são os ajustes tardios, no mesmo formato; os dois entram juntos (ingest.orbe.unir_orbe).
+ARQUIVOS = {"orbe": ("01_*.csv", "06_*.csv"), "taxas": ("02_*.xlsx",), "ponte": ("03_*.eml",),
+            "plano": ("04_*.csv",), "aurora": ("05a_*.csv",), "meridiano": ("05b_*.ofx",)}
 COLUNAS_IA = ("hipoteses_ia", "pergunta_sugerida", "proposta_ia", "decisao")  # extras sempre presentes
 
 
@@ -73,7 +74,11 @@ class Ingestao:
     aurora: object
     meridiano: object
     ledger: Ledger
-    rastro: Rastro  # linhas das exceções de leitura da planilha
+    rastro: Rastro  # linhas das exceções de leitura da planilha e das trocas de linha da Orbe
+    excecoes_orbe: list = field(default_factory=list)  # uma por id_transacao que apareceu em mais de um arquivo
+    trocas_orbe: list[Substituicao] = field(default_factory=list)
+    refs_taxas: dict[str, set] = field(default_factory=dict)  # arquivo de taxas -> refs de linha (I-R2)
+    n_arquivos: dict[str, int] = field(default_factory=dict)  # fonte -> quantos arquivos foram lidos
 
 
 @dataclass
@@ -84,11 +89,18 @@ class Saida:
     ledger: Ledger = field(default_factory=Ledger)
 
 
-def _arquivo(dados: Path, padrao: str) -> Path:
-    achados = sorted(dados.glob(padrao))
-    if len(achados) != 1:
-        raise LayoutError(f"esperava exatamente 1 arquivo {padrao} em {dados}, achei {len(achados)}")
-    return achados[0]
+def _arquivos(dados: Path, padroes: tuple[str, ...]) -> list[Path]:
+    achados = sorted({p for padrao in padroes for p in dados.glob(padrao)}, key=lambda p: p.name)
+    if not achados:
+        raise LayoutError(f"esperava ao menos 1 arquivo {' ou '.join(padroes)} em {dados}, achei 0")
+    return achados
+
+
+def _juntar_extratos(extratos: list) -> Extrato:
+    """Vários extratos da mesma conta: os lançamentos se somam; a cadeia de saldos é conferida em cada arquivo."""
+    if len(extratos) == 1:
+        return extratos[0]
+    return Extrato([l for e in extratos for l in e.lancamentos], extratos[0].saldo_inicial, extratos[-1].saldo_final)
 
 
 def checar_mes_com_dados(n_orbe_mes: int, n_ponte_mes: int, mes: str) -> list[str]:
@@ -105,15 +117,43 @@ def checar_mes_com_dados(n_orbe_mes: int, n_ponte_mes: int, mes: str) -> list[st
 
 # --- etapas de cálculo (funções puras: mesma entrada, mesma saída) ------------------------------------------
 
-def _ingerir(arqs: dict[str, Path]) -> Ingestao:
+def _excecao_troca(t: Substituicao) -> Excecao:
+    d, m = t.descartada, t.mantida
+    return Excecao.nova(
+        TipoExcecao.LINHA_ORBE_SUBSTITUIDA, d.id_transacao, d.valor_bruto,
+        f"O id_transacao {d.id_transacao} aparece em {d.arquivo} (movimento {d.data_movimento:%d/%m/%Y}, bruto "
+        f"R$ {fmt(d.valor_bruto)}, taxa R$ {fmt(d.valor_taxa)}) e em {m.arquivo} (movimento "
+        f"{m.data_movimento:%d/%m/%Y}, bruto R$ {fmt(m.valor_bruto)}, taxa R$ {fmt(m.valor_taxa)}). Premissa: a "
+        f"linha mais recente permanece e a mais antiga sai; o cálculo usa a de {m.arquivo}. Confirmar com a Helena.")
+
+
+def _ingerir(arqs: dict[str, list[Path]]) -> Ingestao:
     ledger = Ledger()
-    contratos, excecoes_taxas = ler_taxas(arqs["taxas"], ledger)
     rastro = Rastro()
-    for e in excecoes_taxas:  # exceção de leitura da planilha: a linha da planilha é a origem
-        rastro.add(e.id_saida, ARQUIVO_TAXAS, e.ref_origem, e.valor_brl)
-    return Ingestao({k: p.name for k, p in arqs.items()}, contratos, excecoes_taxas, ler_orbe(arqs["orbe"]),
-                    ler_ponte(arqs["ponte"], ledger), ler_plano_contas(arqs["plano"]),
-                    ler_aurora(arqs["aurora"], ledger), ler_meridiano(arqs["meridiano"]), ledger, rastro)
+    contratos, excecoes_taxas, refs_taxas = [], [], {}
+    for p in arqs["taxas"]:
+        linhas, excecoes = ler_taxas(p, ledger)
+        contratos += linhas
+        excecoes_taxas += excecoes
+        refs_taxas[p.name] = {c.ref_origem for c in linhas}
+        for e in excecoes:  # exceção de leitura da planilha: a linha da planilha é a origem
+            rastro.add(e.id_saida, p.name, e.ref_origem, e.valor_brl)
+    orbe = [ler_orbe(p, p.name) for p in arqs["orbe"]]
+    txs, trocas = unir_orbe(orbe[0], orbe[1:])
+    excecoes_orbe = [_excecao_troca(t) for t in trocas]
+    for e, t in zip(excecoes_orbe, trocas):  # a origem da exceção é a linha que saiu
+        rastro.add(e.id_saida, t.descartada.arquivo, t.descartada.id_transacao, e.valor_brl)
+    ops = [o for p in arqs["ponte"] for o in ler_ponte(p, ledger, p.name)]
+    meridiano = _juntar_extratos([ler_meridiano(p, p.name) for p in arqs["meridiano"]])
+    fitids: dict[str, str] = {}
+    for l in meridiano.lancamentos:
+        if fitids.setdefault(l.ref_origem, l.arquivo) != l.arquivo:
+            raise LayoutError(f"Meridiano: FITID {l.ref_origem} em {fitids[l.ref_origem]} e em {l.arquivo}; "
+                              f"os extratos se sobrepõem?")
+    return Ingestao({k: ", ".join(p.name for p in v) for k, v in arqs.items()}, contratos, excecoes_taxas, txs,
+                    ops, ler_planos(arqs["plano"]),
+                    _juntar_extratos([ler_aurora(p, ledger, p.name) for p in arqs["aurora"]]), meridiano, ledger,
+                    rastro, excecoes_orbe, trocas, refs_taxas, {k: len(v) for k, v in arqs.items()})
 
 
 def _registro(ing: Ingestao, cfg) -> Registro:
@@ -204,7 +244,7 @@ def fechar(mes: str, dados: Path, saida: Path, estado: Path | None = None,
 
 
 def _fechar(mes, dados, saida, db, execucao_id, ck, cliente, cache) -> ResultadoFechamento:
-    arqs = {k: _arquivo(dados, p) for k, p in ARQUIVOS.items()}
+    arqs = {k: _arquivos(dados, p) for k, p in ARQUIVOS.items()}
     promovidas = db.regras() if db else []
     decisoes = db.decisoes(mes) if db else []
     bruto = mesclar_promovidas(ler_yaml(), promovidas)
@@ -215,7 +255,7 @@ def _fechar(mes, dados, saida, db, execucao_id, ck, cliente, cache) -> Resultado
     codigo = hash_codigo()
     cadastro = {k: bruto.get(k) for k in ("ecs_extra", "sem_contrato", "aliases", "overrides_taxa")}
     decisoes_conta = {d["payload"]["ref_origem"]: d["payload"]["conta"] for d in decisoes if d["tipo_decisao"] == "CONTA"}
-    fp_ing = fingerprint("ingestao", codigo, {k: (p.name, hash_arquivo(p)) for k, p in arqs.items()})
+    fp_ing = fingerprint("ingestao", codigo, {k: [(p.name, hash_arquivo(p)) for p in v] for k, v in arqs.items()})
     fp_chk = fingerprint("checkout", codigo, fp_ing, cadastro, mes)
     fp_div = fingerprint("divergencias", codigo, fp_chk, mes)
     fp_rem = fingerprint("remessa", codigo, fp_ing, cadastro, mes)
@@ -238,7 +278,7 @@ def _fechar(mes, dados, saida, db, execucao_id, ck, cliente, cache) -> Resultado
 
     # --- agentes: o orquestrador só atua no que os motores não souberam resolver -------------------------
     t0 = time.perf_counter()
-    excecoes = (ing.excecoes_taxas + chk.resultado.excecoes + div.resultado.excecoes + rem.resultado.excecoes
+    excecoes = (ing.excecoes_taxas + ing.excecoes_orbe + chk.resultado.excecoes + div.resultado.excecoes + rem.resultado.excecoes
                 + nts.resultado.excecoes + ban.resultado.excecoes)
     rastro_todo = ing.rastro.linhas() + chk.rastro.linhas() + div.rastro.linhas() + rem.rastro.linhas() \
         + nts.rastro.linhas() + ban.rastro.linhas()
@@ -291,13 +331,24 @@ def _fechar(mes, dados, saida, db, execucao_id, ck, cliente, cache) -> Resultado
     for l in aurora.lancamentos + meridiano.lancamentos:
         if no_mes(l.data, mes):
             bancos_mes.setdefault(l.arquivo, set()).add(l.ref_origem)
-    validar_i_r3({ARQUIVO_ORBE: {t.id_transacao for t in txs_mes},
-                  ARQUIVO_PONTE: {o.n_operacao for o in ops_mes}, **bancos_mes}, rastro)
+    orbe_mes: dict[str, set[str]] = {}
+    for t in txs_mes:
+        orbe_mes.setdefault(t.arquivo, set()).add(t.id_transacao)
+    ponte_mes: dict[str, set[str]] = {}  # operação repetida entre arquivos: o rastro aponta para o primeiro
+    for o in sorted(ops_mes, key=lambda o: (o.arquivo, o.linha_fisica)):
+        if not any(o.n_operacao in ids for ids in ponte_mes.values()):
+            ponte_mes.setdefault(o.arquivo, set()).add(o.n_operacao)
+    validar_i_r3({**orbe_mes, **ponte_mes, **bancos_mes}, rastro)
     validar_i_d1(divergencias)
     validar_i_n1(notas)
     validar_i_c1(lancamentos, ing.plano)
-    validar_i_r2({ARQUIVO_ORBE: {t.id_transacao for t in ing.txs}, ARQUIVO_PONTE: {o.n_operacao for o in ing.ops},
-                  ARQUIVO_TAXAS: {c.ref_origem for c in ing.contratos},
+    orbe_todas: dict[str, set[str]] = {}
+    for t in ing.txs + [s.descartada for s in ing.trocas_orbe]:
+        orbe_todas.setdefault(t.arquivo, set()).add(t.id_transacao)
+    ponte_todas: dict[str, set[str]] = {}
+    for o in ing.ops:
+        ponte_todas.setdefault(o.arquivo, set()).add(o.n_operacao)
+    validar_i_r2({**orbe_todas, **ponte_todas, **ing.refs_taxas,
                   **{arq: {l.ref_origem for l in e.lancamentos}
                      for e in (aurora, meridiano) for arq in {l.arquivo for l in e.lancamentos}}}, rastro)
     validacoes = "I-R1, I-R2, I-R3, I-D1, I-N1, I-C1 ok"
@@ -321,9 +372,17 @@ def _fechar(mes, dados, saida, db, execucao_id, ck, cliente, cache) -> Resultado
         f"arquivos: {', '.join(ing.nomes[k] for k in ('orbe', 'taxas', 'ponte', 'plano', 'aurora', 'meridiano'))}",
         f"Orbe: {len(ing.txs)} linha(s), {len(txs_mes)} no mês, {len(ing.txs) - len(txs_mes)} fora do mês",
         f"Ponte: {len(ing.ops)} linha(s), {len(ops_mes)} no mês, {len(ing.ops) - len(ops_mes)} fora do mês",
+        *([f"Orbe: {ing.n_arquivos['orbe']} arquivo(s) somados ({ing.nomes['orbe']}); "
+           f"{len(ing.trocas_orbe)} linha(s) com id repetido (a mais recente permanece, a mais antiga sai)"]
+          if ing.n_arquivos["orbe"] > 1 else []),
+        *[f"{rotulo}: {ing.n_arquivos[k]} arquivos somados ({ing.nomes[k]})"
+          for k, rotulo in (("taxas", "Taxas"), ("ponte", "Ponte"), ("plano", "Plano de contas"),
+                            ("aurora", "Aurora"), ("meridiano", "Meridiano")) if ing.n_arquivos[k] > 1],
         f"Taxas: {len(ing.contratos)} linha(s) de contrato",
         f"Plano de contas: {len(ing.plano)} conta(s), {sum(c.analitica for c in ing.plano.values())} analítica(s)",
-        f"Aurora: {len(aurora.lancamentos)} lançamento(s); cadeia de saldos fecha "
+        f"Aurora: {len(aurora.lancamentos)} lançamento(s); cadeia de saldos conferida dentro de cada um dos "
+        f"{ing.n_arquivos['aurora']} arquivos" if ing.n_arquivos["aurora"] > 1
+        else f"Aurora: {len(aurora.lancamentos)} lançamento(s); cadeia de saldos fecha "
         f"(R$ {fmt(aurora.saldo_inicial)} -> R$ {fmt(aurora.saldo_final)})" if aurora.saldo_inicial is not None
         else f"Aurora: {len(aurora.lancamentos)} lançamento(s); sem SALDO ANTERIOR, cadeia conferida a partir da 1ª linha",
         f"Meridiano: {len(meridiano.lancamentos)} lançamento(s); OFX sem saldo inicial, cadeia não verificável",
