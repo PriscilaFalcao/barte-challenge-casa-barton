@@ -11,6 +11,7 @@ import openpyxl
 
 from ..core.excecoes import Excecao, TipoExcecao
 from ..core.ids import norm_cnpj
+from ..core.ledger import Ledger
 from ..core.money import parse_br
 from .erros import LayoutError
 from .texto import norm_texto as _norm
@@ -127,16 +128,21 @@ def _texto(celula) -> str | None:
     return s or None
 
 
-def ler_taxas(path: Path) -> tuple[list[ContratoLinha], list[Excecao]]:
+def ler_taxas(path: Path, ledger: Ledger | None = None) -> tuple[list[ContratoLinha], list[Excecao]]:
     wb = openpyxl.load_workbook(path, data_only=True)
     ws, linha_cab, cols = _achar_cabecalho(wb)
     contratos: list[ContratoLinha] = []
     excecoes: list[Excecao] = []
     for n, linha in enumerate(ws.iter_rows(min_row=linha_cab + 1, values_only=True), start=linha_cab + 1):
         nome = _texto(linha[cols["lojista"]])
-        if nome is None or nome.startswith("*"):
-            continue
         ref = f"Taxas!L{n}"
+        if nome is None or nome.startswith("*"):
+            campos = ("cnpj", "ec_orbe", "spread", *PRODUTOS)
+            if nome is None and any(_texto(linha[cols[c]]) is not None for c in campos):
+                raise LayoutError(f"Taxas: {ref}: linha com CNPJ, EC ou taxas mas sem nome de lojista")
+            if ledger is not None and any(c is not None and str(c).strip() for c in linha):
+                ledger.ignorar("Taxas", "rodapé ou linha sem dado", ref)
+            continue
         if linha[cols["cnpj"]] is None:
             raise LayoutError(f"Taxas: {ref}: lojista {nome!r} sem CNPJ")
         taxas = {p: _pct(linha[cols[p]], ref) for p in PRODUTOS}

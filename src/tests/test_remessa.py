@@ -196,3 +196,14 @@ def test_pending_ids_are_always_unique_even_with_many_overlaps():
     assert len(ids) == len(set(ids)) == 10
     for e in res.excecoes:
         assert r.soma(e.id_saida) == e.valor_brl
+
+
+def test_out_of_month_operations_are_counted_in_the_ledger():
+    from tarvo.core.ledger import Ledger
+
+    contratos = [contrato()]
+    ledger = Ledger()
+    calcular_remessa([op("PC-1", dia=date(2026, 10, 1)), op("PC-2", dia=date(2026, 9, 30))],
+                     Registro.construir(contratos, {}, {}), Resolvedor(contratos), "2026-09", Rastro(),
+                     ledger=ledger)
+    assert ledger.contar("Ponte", "fora do mês") == 1

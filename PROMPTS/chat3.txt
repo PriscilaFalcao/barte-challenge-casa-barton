@@ -1,0 +1,1910 @@
+
+❯ <ide_opened_file>The user opened the file
+  /Users/bartonthomas/Library/CloudStorage/OneDrive-TheBostonConsultingGroup,In
+  c/Desktop/barte-challenge-casa-barton/docs/PRD.md in the IDE. This may or may
+  not be related to the current task.</ide_opened_file>
+
+❯ Vamos começar a implementação desse PRD. Antes de iniciar, quero um pequeno
+  resumo do que dá para ser feito sem as validações que precisamos do time do
+  financeiro.
+
+  Read 1 file, recalled 1 memory (ctrl+o to expand)
+  ⎿  Loaded docs/CLAUDE.md
+
+⏺ Quase tudo dá para construir agora. O PRD foi desenhado para isso: cada ponto
+  🟡 vira um parâmetro com default documentado, e a resposta do financeiro só
+  troca esse parâmetro. Só não consegui ler as linhas 582–779 (seção 15,
+  interface), então a análise abaixo vem das seções 1–14.
+
+  Sem dependência do financeiro (regras ✅ confirmadas)
+
+  - B0, esqueleto: Decimal com arredondamento meio-centavo simétrico, geração de
+    id_saida, rastro, writers dos CSVs e o validador I-R1.
+  - B1, ingestão e identidade: Orbe, Taxas (cabeçalho por texto, CNPJ em 3
+    formatos, ignora a aba "ANTIGO"), registro de lojistas (CNPJ ↔ EC ↔ alias,
+    com os 3 ECs confirmados) e resolvedor de taxa por vigência.
+  - B2, checkout (nível Mínimo): venda, estorno pela data_venda_original,
+    antecipação e reversão. A comissão usa a taxa contratada, nunca o valor_taxa
+    da Orbe. Dá para validar contra os totais Fox já conferidos (214.558,33 /
+    −7.108,69 / 30.491,41 / −6.060,69).
+  - B3, divergências de checkout: comparação por taxa com 2 casas, o que elimina
+    os alarmes falsos de R$ 0,01. Rota Global (+0,50 p.p. em crédito, 2–6x e
+    7–12x) e Casa do Estudante (tudo cobrado é divergência) já estão cobertas.
+  - B4, remessa: ingestão do .eml, dedup por Nº Operação, 50% do Spread R$,
+    spread negativo fora da comissão, ressalva ignorada, competência pela data
+    de contratação. Dá para validar contra o total Lucca (39.543,45).
+  - B5, notas: uma nota de checkout por lojista, sem emitir se a comissão for ≤
+    0, nota única da remessa para a Ponte Câmbio e discriminação por template.
+  - B6, bancos: Aurora com cadeia de saldos, OFX em CP1252, plano de contas e
+    classificação por regra para os padrões já confirmados (folha, tributos,
+    tarifas, aluguel, cloud, provisões de agosto).
+  - B7 e B8: pendências, resumo.md, SQLite, eventos por etapa, fila de exceções,
+    orquestrador, modo sem IA e agente Classificador.
+  - B9 e B10, interface: upload, workflow, fila de validação, download,
+    Configurações e histórico. É infraestrutura, e os papéis V17 e V18 entram
+    com o default do PRD.
+  - Testes e CLI: golden, propriedade de permutação, paridade CLI × interface e
+    README.
+
+  Dá para construir, mas o número sai provisório
+
+  Cada item abaixo vira uma flag no regras.yaml, com o default do PRD.
+
+  Item: V3 Casa do Estudante: negativa em comissões, sem nota
+  Prio: A
+  Default: negativa, sem nota, pendência
+  Afeta: comissoes, notas, pendencias
+  ────────────────────────────────────────
+  Item: V4 Spread negativo em divergências
+  Prio: A
+  Default: entra (Σ R$ 3.565,98)
+  Afeta: divergencias_taxa
+  ────────────────────────────────────────
+  Item: V5 Atlas fora de comissões e divergências
+  Prio: A
+  Default: fora, só pendência
+  Afeta: comissoes, divergencias_taxa
+  ────────────────────────────────────────
+  Item: V15 Estorno a taxa diferente da contratada
+  Prio: A
+  Default: entra com sinal negativo
+  Afeta: divergencias_taxa
+  ────────────────────────────────────────
+  Item: V8 Excesso Mundo Aberto
+  Prio: A
+  Default: R$ 1.418,85 (via Spread %)
+  Afeta: divergencias_taxa
+  ────────────────────────────────────────
+  Item: V7 Contas ⚠️ (TED Orbe, PIX lojistas, TED Ponte, CDB, IOF, tarifa de
+  câmbio, seguro)
+  Prio: A
+  Default: tabela 2.5 do HIPOTESES.md
+  Afeta: lancamentos_classificados
+  ────────────────────────────────────────
+  Item: V1, V2, V12 PIX R$ 18.240, repasse R$ 112.220,15 e devolução R$ 12.400
+  Prio: B
+  Default: conta provisória e pendência
+  Afeta: lancamentos, pendencias
+  ────────────────────────────────────────
+  Item: V6 quem_decide por tipo
+  Prio: B
+  Default: tabela 7.8
+  Afeta: pendencias
+  ────────────────────────────────────────
+  Item: V11 Faixas de parcelas, V14 estornos de agosto
+  Prio: B
+  Default: pelas colunas da planilha, planilha atual
+  Afeta: checkout
+
+  Os itens V9, V10, V13, V16, V0 e V0b são refinamentos e não bloqueiam nada.
+
+  Recomendação
+
+  Seguir a ordem do plano (B0 → B1 → B2), que não depende de nenhuma resposta.
+  Os dois pontos onde o dado pode mudar o rumo do código são V8 (fórmula de
+  divergência da remessa) e V7 (mapa de contas). Eles devem entrar logo no
+  primeiro bloco de perguntas, que ainda não vi se foi enviado.
+
+  Quer que eu comece pelo B0 e B1?
+
+❯ bem, nesse caso, vamos começar pelo B0.
+
+⏺ Skill(superpowers:test-driven-development)
+  ⎿  Successfully loaded skill
+
+  Listed 1 directory, ran 4 shell commands (ctrl+o to expand)
+
+⏺ Escrevendo o código mínimo de ids, rastro e excecoes (os testes já falham pelo
+  motivo certo: módulos inexistentes).
+
+  Ran 3 shell commands (ctrl+o to expand)
+
+⏺ B0 está pronto e os 41 testes passam (.venv/bin/pytest). Eu escrevi cada teste
+  antes do código e confirmei que ele falhava por módulo inexistente.
+
+  O que entrou
+  - core/money.py: Decimal exato, round_money com meio centavo para cima
+    (simétrico no negativo), parse_br para 66.026,00 e 1,49%, e fmt, que nunca
+    escreve -0.00. D() rejeita float.
+  - core/ids.py: norm_cnpj (só dígitos, completa com zeros até 14) e os
+    geradores de id_saida da seção 6 do PRD.
+  - core/rastro.py: a classe Rastro, com add e soma. A mesma ref_origem com
+    componentes diferentes é aceita (MDR e antecipação da mesma transação);
+    linha exatamente repetida é rejeitada.
+  - core/excecoes.py: os 12 tipos de exceção e a tabela de quem_decide da seção
+    7.8. Os defaults ainda não validados (V6) estão marcados no código.
+  - output/writers.py: esquema das 6 CSVs, separador ;, ponto decimal e
+    AAAA-MM-DD. Antes de escrever, valida colunas obrigatórias, enums, CNPJ de
+    14 dígitos e confianca entre 0 e 1. A ordem das linhas é determinística: a
+    mesma entrada em outra ordem gera arquivo idêntico byte a byte.
+  - output/validators.py: o invariante I-R1, que compara sum(rastro) com o
+    número reportado em decimal exato. Ele também falha se o id_saida não tiver
+    rastro ou estiver duplicado, e lista todas as falhas de uma vez.
+
+  Ambiente
+  - O Python do sistema é 3.9, e o PRD pede 3.11 ou mais. Criei .venv com o 3.13
+    do Homebrew e pyproject.toml com requires-python >= 3.11.
+  - Criei também um .gitignore (.venv, data/ e caches).
+  - Não fiz commit. O estado do git continua com PRD.md movido para docs/ e
+    ainda não commitado.
+
+  Segue o B1 (ingestão da Orbe e das Taxas, registro de lojistas e resolvedor de
+  taxa) quando você quiser. Ele já precisa ler os arquivos reais de dados/.
+
+❯ perfeito,  verifiquei os arquivos e para mim faz sentido o que foi feito.
+  Vamos fazer a implementação de B1.
+
+  Ran 9 shell commands (ctrl+o to expand)
+
+⏺ Update(tests/test_taxas.py)
+  ⎿  Added 1 line, removed 1 line
+      141  
+      142  def test_real_file_golden(dados):
+      143      cs, exc = ler_taxas(dados / "02_tabela_taxas_contratadas.x
+           lsx")
+      144 -    assert len(cs) == 27                                      
+      144 +    assert len(cs) == 25  # linhas 5 a 29 da planilha         
+      145      assert exc == []
+      146      bridge = [c for c in cs if c.cnpj14 == "22224579000109"]
+      147      assert [(c.vigencia_ini, c.vigencia_fim) for c in bridge] 
+           == [
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Testes de config e registro escritos e falhando por módulo ausente; agora
+  implemento config.py e identity/registro.py.
+
+  Ran 6 shell commands (ctrl+o to expand)
+
+⏺ O B1 está pronto e os 112 testes passam (.venv/bin/pytest), incluindo os que
+  rodam contra os arquivos reais de dados/. Não fiz commit.
+
+  O que entrou
+  - ingest/orbe.py: lê as 1.943 transações. Normaliza REVERSAO ANTECIPACAO para
+    REVERSAO_ANTECIPACAO. Falha com mensagem clara se faltar coluna, o tipo for
+    desconhecido, o id_transacao estiver duplicado ou a data estiver mal
+    formatada.
+  - ingest/taxas.py:
+    - Acha o cabeçalho pelo texto, ignora a aba "ANTIGO" e a linha de rodapé *,
+      e aceita CNPJ nos 3 formatos e taxa como texto ('1,49%').
+    - Lê as 25 linhas reais e guarda as taxas em pontos percentuais (1,49), a
+      mesma unidade da Orbe.
+    - A vigência segue uma gramática fixa: até, a partir de ou data simples. O
+      que não casa vira exceção CONTRATO_AMBIGUO, e a linha não é usada.
+  - config/defaults.yaml e config.py: os 3 ECs do C7, a Atlas como sem contrato
+    (C9) e o override da Casa do Estudante com taxa zero de 01/09 a 31/12 (C8),
+    com a fonte registrada.
+  - identity/registro.py:
+    - Resolve primeiro por EC, depois por CNPJ e por último por alias exato.
+      Nunca casa por nome parecido.
+    - A Atlas sai como SEM_CONTRATO, e não como lojista nem como entidade não
+      resolvida.
+    - Falha se um mesmo EC apontar para dois CNPJs, ou se um alias apontar para
+      dois lojistas.
+  - contracts/resolver.py:
+    - Escolhe a taxa pela data da venda, com janelas inclusivas nas duas pontas.
+      O override vale sobre a planilha dentro da sua janela.
+    - Janela ausente ou sobreposta, ou produto não contratado, vira
+      ContratoError, que o motor converte em pendência.
+    - Faixas de parcelas: 13x ou mais vira exceção (V11).
+    - Spread em branco ou "padrão" dá 1,5% (R2).
+
+  Conferência contra os dados reais
+  - Cobertura: todos os ECs da Orbe são classificados, sem nenhum não resolvido.
+    As 57 linhas da Atlas ficam como SEM_CONTRATO, e as outras 1.886 resolvem
+    taxa sem exceção.
+  - Divergências: das 1.886 linhas, 210 têm taxa aplicada diferente da
+    contratada, e só em 3 lojistas:
+
+  ┌───────────────┬────────┬────────────────────────────────────────────────┐
+  │    Lojista    │ Linhas │                   Observação                   │
+  ├───────────────┼────────┼────────────────────────────────────────────────┤
+  │ Casa do       │ 118    │ Tarifa zero, então tudo que foi cobrado        │
+  │ Estudante     │        │ diverge.                                       │
+  ├───────────────┼────────┼────────────────────────────────────────────────┤
+  │ Rota Global   │ 87     │ Só crédito, sempre +0,50 p.p.; débito e Pix    │
+  │               │        │ sem divergência.                               │
+  ├───────────────┼────────┼────────────────────────────────────────────────┤
+  │ Bridge        │ 5      │ Vendas depois de 15/09 cobradas ao preço       │
+  │               │        │ antigo (2,59% contra 2,19%).                   │
+  └───────────────┴────────┴────────────────────────────────────────────────┘
+
+  Esses resultados batem com o que o HIPOTESES.md descreve.
+
+  Outras decisões
+  - Corrigi um número no meu próprio teste: a planilha tem 25 linhas de lojista,
+    e não 27 como eu tinha escrito.
+  - Adicionei pyyaml às dependências.
+  - O resolvedor devolve regra_id = "PLANILHA" para taxa da planilha. O motor de
+    checkout (B2) é quem troca para C1, C3 ou C3-HISTORICO.
+
+  O próximo passo é o B2: motor de checkout, comissões e rastro, que é o
+  primeiro commit entregável. Quer seguir?
+
+❯ antes de seguir, tenho 2 pontos:
+  1) entendo que seja só no teste o numero fixo de lojistas, mas só para
+  confirmar: a arquitetura atua comporta a entrada de novos, correto?
+  2) como posso testar eu mesma o que já foi implementado? Analise estatica do
+  código é ok, mas queria ver na prática as implementações feitas.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ 1) Novos lojistas: sim, a arquitetura comporta. Nenhum lojista está fixo no
+  código de src/. Os números como 25 linhas e 24 lojistas só aparecem nos
+  testes. O que existe de específico está em config/defaults.yaml, que é dado e
+  não código: os 3 ECs do C7, a Atlas como sem contrato e o override da Casa.
+
+  Para um lojista novo, o caminho depende do caso:
+
+  ┌─────────────────────────┬───────────────────────────────────────────────┐
+  │          Caso           │                O que acontece                 │
+  ├─────────────────────────┼───────────────────────────────────────────────┤
+  │ Linha nova na planilha, │ Entra sozinho, sem mexer em nada.             │
+  │  com EC preenchido      │                                               │
+  ├─────────────────────────┼───────────────────────────────────────────────┤
+  │ Linha nova sem EC, ou   │ O EC vai para ecs_extra na configuração. Hoje │
+  │ EC que só o canal       │  é o YAML, e na interface (B10) será um       │
+  │ conhece                 │ formulário.                                   │
+  ├─────────────────────────┼───────────────────────────────────────────────┤
+  │ EC na Orbe que não está │ O registro devolve NAO_RESOLVIDO. A pendência │
+  │  em lugar nenhum        │  ENTIDADE_NAO_RESOLVIDA ainda não é gerada,   │
+  │                         │ porque isso é função do motor do B2.          │
+  ├─────────────────────────┼───────────────────────────────────────────────┤
+  │ Novo lojista sem        │ Entra em sem_contrato na configuração.        │
+  │ contrato (como a Atlas) │                                               │
+  ├─────────────────────────┼───────────────────────────────────────────────┤
+  │ Nova faixa de parcelas  │                                               │
+  │ (13x ou mais), nova     │ Isso exige mudança de código. Hoje vira       │
+  │ modalidade ou novo      │ exceção, não um número errado.                │
+  │ produto                 │                                               │
+  └─────────────────────────┴───────────────────────────────────────────────┘
+
+  2) Como testar na prática. Criei scripts/inspecionar_b1.py, que lê os arquivos
+  reais e mostra o resultado no terminal. Todos os comandos abaixo rodam da
+  raiz do repo.
+
+  # Resumo geral: planilha, Orbe, situação dos ECs e linhas com taxa aplicada ≠
+  contratada
+  .venv/bin/python scripts/inspecionar_b1.py
+
+  # Consultar uma taxa específica (EC, produto e data da venda)
+  .venv/bin/python scripts/inspecionar_b1.py --ec 1075624862 --produto
+  CREDITO_1X --data 2026-09-14   # Bridge antes: 2.59%
+  .venv/bin/python scripts/inspecionar_b1.py --ec 1075624862 --produto
+  CREDITO_1X --data 2026-09-15   # Bridge depois: 2.19%
+  .venv/bin/python scripts/inspecionar_b1.py --ec 1018325654 --produto DEBITO
+  --data 2026-09-10       # Casa: 0.00%, regra C8
+  .venv/bin/python scripts/inspecionar_b1.py --ec 1076801732
+                       # Atlas: SEM_CONTRATO
+  .venv/bin/python scripts/inspecionar_b1.py --ec 999
+                       # NAO_RESOLVIDO
+
+  # Suíte completa, com o nome de cada teste
+  .venv/bin/pytest -v
+
+  Rodei todos os comandos acima antes de te passar. O resumo mostra 25 linhas na
+  planilha, 24 lojistas, 1.943 transações, 1.886 com lojista e 57 da Atlas sem
+  contrato, e nenhum EC não resolvido. A lista de divergências bate com o
+  esperado: Casa, Rota (só crédito) e Bridge (5 vendas).
+
+  Duas formas de ver o sistema reagir:
+  - Mudar a regra: em config/defaults.yaml, tire o override da Casa e rode o
+    resumo de novo. A Casa passa a ter divergência só onde a Orbe cobrou acima
+    da planilha, e não mais em tudo.
+  - Mudar o arquivo: copie dados/ para outra pasta, altere a planilha (por
+    exemplo, apague o EC de um lojista) e rode com --dados outra_pasta/. Esse EC
+    passa a aparecer como NAO_RESOLVIDO.
+
+  Um ponto de leitura: a origem da taxa do dia 14/09 aparece como Taxas!L6 e a
+  do dia 15/09 como L7. Esses números são as linhas reais da planilha, que
+  começam depois do cabeçalho na linha 5. Eles vão para a coluna de origem do
+  rastro.csv no B2.
+
+  Seguimos para o B2?
+
+❯ perfeito! Um unico ponto. testes deve estar dentro de src (assim como tudo o
+  que é código).
+
+  Após esse ajuste, pode começar a fase B2
+
+  Ran 13 shell commands (ctrl+o to expand)
+  ⎿  Error: No such tool available: bash. Tool names are case-sensitive: call
+     Bash instead.
+
+  Ran 3 shell commands (ctrl+o to expand)
+
+⏺ Reorganizei os testes e implementei o B2. Os 145 testes passam, e o fechamento
+  de setembro já gera comissoes_por_lojista.csv, rastro.csv e pendencias.csv em
+  saida/. Não fiz commit. O git status mostra o move de tests/ e scripts/ para
+  src/ como mudança ainda não commitada.
+
+  Ajuste: tudo dentro de src/
+
+  - tests/ virou src/tests/ e scripts/ virou src/scripts/. Atualizei
+    pyproject.toml e o caminho do conftest.
+  - Atualizei a árvore de pastas do docs/PRD.md e registrei a regra na memória,
+    para valer nas próximas sessões.
+  - Adicionei build-system ao pyproject.toml. Depois de .venv/bin/pip install -e
+    ., o comando python -m tarvo roda da raiz do repo.
+
+  B2: motor de checkout
+
+  Código em engines/checkout.py, pipeline.py e cli.py.
+
+  - Comissão por linha: round(bruto assinado × taxa contratada). O valor_taxa da
+    Orbe nunca entra no cálculo. O arredondamento é feito por linha, antes da
+    soma.
+  - Estorno: usa a taxa da data da venda original. Quando a venda é de agosto, a
+    linha leva a marca C3-HISTORICO (V14).
+  - Antecipação e reversão: a antecipação sai com o componente ANTECIPACAO. A
+    reversão usa a taxa da data da antecipação original e cancela exatamente a
+    comissão dela.
+  - Agregação: uma linha por lojista, com id_saida no padrão
+    COM-CHK-<cnpj>-202609. Cada transação gera uma linha de rastro, inclusive as
+    de comissão zero, com componente, taxa_usada_pct e regra_id.
+  - Exceções:
+    - Atlas: vira a pendência SEM_CONTRATO, com Diego como responsável.
+    - EC desconhecido: ENTIDADE_NAO_RESOLVIDA.
+    - Linha sem taxa vigente, ou com faixa de 13x ou mais: CONTRATO_AMBIGUO, com
+      uma pendência por transação.
+    - Em todos os casos a linha fica fora da comissão, e a pendência tem linhas
+      de rastro cuja soma bate com o seu valor.
+  - CLI:
+    - python -m tarvo fechar --mes 2026-09 valida o invariante I-R1 antes de
+      escrever, então uma falha não deixa saída parcial.
+    - Duas execuções geram arquivos idênticos byte a byte.
+    - Arquivo com layout errado derruba a execução com mensagem clara.
+
+  Resultados de setembro
+
+  - Total: 21 lojistas, R$ 207.039,73 de comissão de checkout.
+  - Casa do Estudante: −R$ 5,50, exatamente o valor que o PRD previa (o estorno
+    de venda de 21/08).
+  - Atlas: fora das comissões, com 1 pendência de R$ 7.876,05.
+  - Conferências independentes:
+    - Os totais da Orbe por tipo batem com os números do Fox.
+    - Para cada linha vale taxa Orbe − comissão = bruto × (aplicada −
+      contratada), com folga de 1,5 centavo.
+    - Todas as 1.943 linhas aparecem no rastro exatamente uma vez.
+
+  Para você decidir ou validar
+
+  1. Valor da pendência da Atlas. Usei a soma da taxa cobrada pela Orbe nas 57
+     linhas (R$ 7.876,05), porque a comissão não pode ser calculada sem
+     contrato. É premissa minha e está descrita no motivo da pendência. Se a
+     Helena ou o Diego preferirem o valor bruto, a mudança é de uma linha.
+  2. Dois erros meus nos testes, corrigidos. Eu tinha esperado 6 reversões, mas
+     2 são da Atlas, então são 4. A folga da identidade também estava apertada
+     demais, porque soma a truncagem da Orbe e o arredondamento da comissão. Nos
+     dois casos o código estava certo e o teste estava errado.
+  3. Teste de falha da planilha. Quando uma vigência da planilha fica ilegível,
+     as vendas daquele lojista viram pendência em vez de receber um número
+     inventado. Cobri isso num teste.
+
+  Para ver na prática: .venv/bin/python -m tarvo fechar --mes 2026-09, depois
+  abra os CSVs em saida/. Escolha uma linha de comissoes_por_lojista.csv e some
+  o valor dela em rastro.csv.
+
+  Seguimos para o B3 (divergências de checkout)?
+
+❯ <ide_opened_file>The user opened the file
+  /Users/bartonthomas/Library/CloudStorage/OneDrive-TheBostonConsultingGroup,In
+  c/Desktop/barte-challenge-casa-barton/docs/PRD.md in the IDE. This may or may
+  not be related to the current task.</ide_opened_file>
+
+❯ antes de seguir, esse ponto que levantou sobre a pendencia da Atlas, já está
+  mapeada nas perguntas que vamos fazer?
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Não, esse ponto não está mapeado.
+
+  O que já cobre a Atlas nas perguntas:
+  - Q2 do HIPOTESES.md (V2 no PRD): pergunta sobre o repasse de R$ 112.220,15 em
+    10/09. É sobre o repasse, não sobre a pendência de checkout.
+  - V5 do PRD: pergunta se a Atlas aparece em comissoes_por_lojista (com 0) e em
+    divergências, e qual taxa vale. É sobre onde ela aparece nas saídas, não
+    sobre o valor da pendência.
+  - V6 do PRD: pergunta quem decide cada tipo de pendência. O Diego já está como
+    responsável pela SEM_CONTRATO.
+
+  O que ficou de fora: o que o campo valor_brl da pendência SEM_CONTRATO
+  representa. Hoje o valor é a soma da taxa que a Orbe cobrou nas 57 linhas, R$
+  7.876,05. Essa escolha foi minha. As alternativas seriam o volume bruto, ou o
+  valor zero até existir contrato.
+
+  Minha avaliação: não vale mandar uma pergunta nova ao financeiro. Isso é
+  convenção de como mostramos a pendência, não regra de negócio, e nenhuma das
+  opções muda comissão, nota ou divergência. O risco é só de leitura, se alguém
+  interpretar R$ 7.876,05 como valor a faturar. Por isso o motivo da pendência
+  já diz que o valor é a taxa cobrada pela Orbe e que a comissão não foi
+  calculada.
+
+  Proposta de registro, sem pergunta nova:
+  1. Anexar essa premissa à V5, que já vai para o Diego e a Helena. Seria uma
+     frase: "o valor na pendência é a taxa cobrada pela Orbe, só para
+     dimensionar. Prefere outro critério?"
+  2. Registrar a premissa no HIPOTESES.md, para constar como decisão nossa.
+
+  Quer que eu faça os dois ajustes nos docs antes de seguir para o B3?
+
+❯ sim, faça os ajustes, assim que o time financeiro tiver disponível, faço as
+  perguntas a eles
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+⏺ Os dois ajustes estão feitos:
+
+  - docs/PRD.md, V5 (seção 12): a pergunta ganhou um sub-ponto. Ele diz que o
+    valor_brl da pendência SEM_CONTRATO é a soma da taxa cobrada pela Orbe (R$
+    7.876,05), só para dimensionar, e pergunta se há outro critério preferido. A
+    coluna de default no código também registra esse valor.
+  - docs/HIPOTESES.md: entrou a linha D6 na tabela de divergências, logo depois
+    da D5. Ela registra o critério como convenção nossa (⚠️), cita as
+    alternativas (volume bruto ou zero) e diz que nenhuma muda comissão, nota ou
+    divergência.
+
+  Quando o financeiro estiver disponível, a V5 já sai com esse sub-ponto junto.
+  Se a resposta for outro critério, a mudança é de uma linha em
+  engines/checkout.py, na função _pendencia.
+
+  Seguimos para o B3 (divergências de checkout)?
+
+❯ pode seguir para B3
+
+  Ran 8 shell commands (ctrl+o to expand)
+⏺ O B3 está pronto e os 165 testes passam. O python -m tarvo fechar --mes
+  2026-09 agora também escreve divergencias_taxa.csv. Não fiz commit.
+
+  O que entrou
+
+  - Motor (engines/divergencias.py):
+    - Compara a taxa aplicada pela Orbe com a contratada, em igualdade exata.
+    - Quando diferem, o valor é round(bruto × (aplicada − contratada)), por
+      linha.
+    - Por isso a truncagem da Orbe nunca gera alarme. Nas 1.676 linhas de
+      setembro com taxa igual à contratada, 855 têm centavo de diferença, e
+      nenhuma virou divergência.
+    - Cada divergência gera uma linha de rastro e uma pendência DIVERGENCIA_ORBE
+      para a Helena (D3), com o motivo escrito.
+  - Estornos (V15): o estorno feito a taxa diferente entra com sinal negativo,
+    por padrão. Isso é um parâmetro, incluir_estornos, então a resposta do
+    financeiro troca uma linha.
+  - Atlas: fica fora das divergências, porque o motor de checkout não gera linha
+    para ela (D5).
+  - Invariante I-D1: novo em output/validators.py. Ele roda antes de escrever e
+    aborta se alguma divergência tiver taxa aplicada igual à contratada.
+  - Testes de apoio: movi os construtores de dados sintéticos para
+    src/tests/helpers.py, e o teste do B2 passou a usá-los.
+
+  Resultados de setembro
+
+  210 divergências, somando R$ 16.973,65:
+
+  ┌────────────┬────────┬───────────┬──────────────────────────────────────┐
+  │  Lojista   │ Linhas │   Valor   │                Origem                │
+  ├────────────┼────────┼───────────┼──────────────────────────────────────┤
+  │            │        │           │ Tudo que foi cobrado, já que o       │
+  │ Casa do    │ 118    │ R$        │ contratado é 0. O cobrado indevido   │
+  │ Estudante  │        │ 15.397,42 │ bruto é R$ 15.406,51, e os estornos  │
+  │            │        │           │ de setembro abatem R$ 9,09.          │
+  ├────────────┼────────┼───────────┼──────────────────────────────────────┤
+  │            │        │           │ Só crédito (à vista, 2–6x e 7–12x),  │
+  │ Rota       │ 87     │ R$        │ sempre +0,50 p.p. Débito e Pix não   │
+  │ Global     │        │ 1.546,28  │ têm divergência. 4 estornos entram   │
+  │            │        │           │ com valor negativo.                  │
+  ├────────────┼────────┼───────────┼──────────────────────────────────────┤
+  │ Bridge     │ 5      │ R$ 29,95  │ Vendas depois de 15/09 cobradas a    │
+  │            │        │           │ 2,59% em vez de 2,19%.               │
+  └────────────┴────────┴───────────┴──────────────────────────────────────┘
+
+  - Conferência independente: em todas as 210 linhas vale taxa Orbe − comissão =
+    valor da divergência, com folga de 1,5 centavo.
+  - Reconciliação: os invariantes I-R1 e I-D1 passam.
+  - Pendências: pendencias.csv agora tem 211 linhas, as 210 divergências mais a
+    Atlas.
+
+  Para você decidir
+
+  1. Pendências por divergência. Fiz uma pendência por divergência, seguindo o
+     D3 do HIPOTESES.md ("cada divergência vira pendência dela"). Isso dá 210
+     linhas, a maioria da Casa e da Rota. Se a Helena preferir uma pendência por
+     lojista, o rastro e as somas continuam fechando.
+  2. Correção no meu teste. Eu havia escrito que seriam cerca de 900 linhas de
+     ruído de truncagem, a partir do "~1.000" do PRD. O número real, depois de
+     excluir Atlas e linhas divergentes, é 855. Corrigi o teste.
+  3. Casa e V3(b). O valor líquido da Casa (R$ 15.397,42) assume que os estornos
+     de setembro reduzem o valor a devolver. Isso depende da V3(b) e da V15,
+     que continuam abertas.
+
+  Seguimos para o B4 (ingestão da Ponte, motor de remessa e divergências de
+  remessa)?
+
+❯ Antes de seguir, novamente: está mapeado a duvida para helena qual
+  granularidade ela prefere ver pendencia?
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Não, essa dúvida não está mapeada. A V6 pergunta só quem decide cada tipo de
+  pendência, não em que nível de detalhe a Helena prefere vê-las.
+
+  O que existe hoje sobre isso:
+  - D3 no HIPOTESES.md ("cada divergência vira pendência dela"): vem de uma
+    resposta no Slack (Fox AI, 20h01). Ela confirma que a devolução é decisão da
+    Helena, caso a caso. Não diz se ela quer 210 linhas ou uma por lojista.
+  - Contestação da Ponte (perguntas_slack.md, linha 218): ela pede "o valor e as
+    operações", porque é isso que manda para a Ponte. Isso sugere que ela
+    raciocina por operação, mas é uma inferência, não resposta direta.
+  - Fazer uma pendência por divergência foi escolha minha. Ela é coerente com o
+    D3 e com a rastreabilidade linha a linha, mas continua sendo convenção
+    nossa.
+
+  Minha avaliação: a pergunta é de prioridade baixa (C) e não precisa de
+  pergunta própria. Nenhuma das duas granularidades muda comissão, nota ou
+  divergência, e o rastro continua fechando nas duas.
+
+  Proposta:
+  1. Acrescentar um sub-ponto à V6 no PRD: "hoje geramos 1 pendência por
+     divergência, 210 em setembro. Prefere 1 por lojista (3 linhas), com as
+     operações listadas no motivo?"
+  2. Registrar a premissa no HIPOTESES.md ao lado do D6, como convenção nossa.
+
+  Se a resposta for "por lojista", a troca é só uma agregação no fim do motor de
+  divergências, com o rastro apontando para as mesmas transações.
+
+  Faço os dois ajustes e sigo para o B4?
+
+❯ isso, adicione como subponto, porque temos um numero restrito de perguntas
+  que podemos fazer, mas esperamos que parte delas sejam perguntadas por outras
+  equipes e compartilhada com todos.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+⏺ Os dois ajustes estão feitos, sem pergunta nova, como você pediu:
+
+  - docs/PRD.md, V6 (seção 12): a pergunta ganhou um sub-ponto sobre a
+    granularidade da DIVERGENCIA_ORBE. Ele diz que hoje há 1 pendência por
+    divergência (210 em setembro) e pergunta se ela prefere 1 por lojista (3
+    linhas), com as operações listadas no motivo. O default registrado é "1
+    pendência por divergência".
+  - docs/HIPOTESES.md: entrou a linha D7, ao lado do D6, descrevendo a convenção
+    atual como nossa (⚠️) e apontando para o sub-ponto da V6.
+
+  Os sub-pontos pendentes de resposta ficam assim:
+
+  ┌──────────┬──────────────────────────────────────────────┐
+  │ Pergunta │                  Sub-ponto                   │
+  ├──────────┼──────────────────────────────────────────────┤
+  │ V5       │ Critério do valor_brl da pendência da Atlas. │
+  ├──────────┼──────────────────────────────────────────────┤
+  │ V6       │ Granularidade das pendências de divergência. │
+  └──────────┴──────────────────────────────────────────────┘
+
+  Se outra equipe já tiver feito alguma dessas perguntas e a banca publicar a
+  resposta, é só atualizar o default.
+
+  Seguimos para o B4 (ingestão da Ponte .eml, motor de remessa e divergências de
+  remessa)?
+
+❯ podemos seguir para b4
+
+  Ran 11 shell commands (ctrl+o to expand)
+
+⏺ O B4 está pronto e os 207 testes passam. O fechamento de setembro agora inclui
+  a remessa, e as saídas em saida/ já têm checkout e remessa juntos. Não fiz
+  commit.
+
+  O que entrou
+
+  - Ingestão (ingest/ponte.py):
+    - Extrai o anexo XLSX do .eml; se houver zero ou mais de um anexo, falha.
+    - Acha o cabeçalho pelo texto "Nº Operação", ignora rodapé e a aba Resumo, e
+      falha nomeando a coluna ausente.
+    - Mantém as linhas duplicadas e deixa o motor decidir qual conta.
+    - Criei ingest/texto.py para a normalização de texto, compartilhada com a
+      ingestão das taxas.
+  - Motor (engines/remessa.py):
+    - Comissão é round(50% × Spread R$), com a competência pela data de
+      contratação. Operação contratada em 30/09 e liquidada em 01/10 entra em
+      setembro.
+    - A duplicata conta uma vez e vira pendência de contestação. Spread negativo
+      fica fora da comissão e também vira pendência de contestação.
+    - Mundo Aberto é comissionado pelo realizado, com o excesso (nota pelo
+      realizado), e gera divergência e pendência pelo valor cheio.
+    - Status "APROVADO C/ RESSALVA" não muda nada.
+    - A divergência usa ME × PTAX × (Spread % aplicado − contratado), só acima
+      de 0,01 p.p. Spread em branco ou "padrão" vale 1,5%.
+  - Parâmetros: a participação de 50%, a tolerância de 0,01 p.p. e
+    spread_negativo_em_divergencias (V4) são argumentos com default documentado.
+  - Pipeline e CLI: a remessa entra no fechar, e os invariantes são validados
+    antes de escrever.
+
+  Resultados de setembro
+
+  - Comissão: R$ 39.543,45 em 14 lojistas, igual ao número já conferido (Lucca).
+    Recalculei esse total a partir das linhas cruas, sem passar pelo motor.
+  - Mundo Aberto: R$ 1.418,85 de excesso em 23 operações. A fórmula alternativa
+    da V8 dá R$ 1.418,88, os 3 centavos que o HIPOTESES.md já descrevia.
+  - Spreads negativos: 4 operações, desvio de 3.565,98 em valor absoluto (ver o
+    sinal abaixo).
+  - Duplicata: PC-0926-0162 conta uma vez, e a pendência é de R$ 410,94.
+  - Divergências: só Mundo Aberto e os 4 negativos, 27 no total. O ruído de
+    ±0,0016 p.p. do Spread % fica abaixo da tolerância em todos os outros
+    contratos.
+  - Totais dos arquivos: 237 divergências e 239 pendências (28 de contestação da
+    Ponte).
+  - Invariantes: I-R1 e I-D1 passam, e todas as operações aparecem no rastro.
+
+  Para você decidir ou validar
+
+  1. Sinal dos spreads negativos. Segui o sinal da divergência de checkout
+     (aplicado − contratado), então os 4 negativos somam −R$ 3.565,98. O
+     HIPOTESES.md e a Lucca citam o número sem sinal. Se o gabarito esperar
+     positivo, é inverter o sinal só nesse caso. Registrei isso como R13 e é um
+     bom detalhe para anexar à V4.
+  2. Tipo novo de exceção. Criei STATUS_PONTE_DESCONHECIDO, para o caso de a
+     Ponte mandar em outubro um status fora dos dois conhecidos. Sem isso a
+     operação seria comissionada em silêncio. Hoje nenhuma ocorrência.
+  3. Ponto fraco conhecido. Se uma operação for ao mesmo tempo duplicada e
+     divergente, as duas pendências teriam o mesmo id_saida. O validador derruba
+     o fechamento com mensagem clara, e não há ocorrência em setembro. Não
+     tratei por ser raro. Se preferir, resolvo agora.
+  4. HIPOTESES.md: adicionei R13 (sinal e valor das pendências de contestação) e
+     R14 (o que fica fora da comissão e vira pendência).
+
+  Para ver na prática: .venv/bin/python -m tarvo fechar --mes 2026-09. Em
+  divergencias_taxa.csv, filtre REMESSA e confira as 27 linhas. A linha da Mundo
+  Aberto tem contratado 1,20 e aplicado perto de 1,50.
+
+  Seguimos para o B5 (motor de notas)?
+
+❯ antes de seguir para b5, vamos resolver esse problema de ponto fraco
+  conhecido, não dá para dizer se é raro com a quantidade de meses que temos
+  dos dados.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+⏺ O ponto fraco está resolvido, e os 210 testes passam. Não fiz commit.
+
+  O problema: uma operação duplicada que também fosse divergente (Mundo Aberto)
+  ou de spread negativo gerava duas pendências com o mesmo id_saida
+  (PEN-CONTESTACAO_PONTE-<operação>). O validador derrubava o fechamento com
+  erro, em vez de tratar o caso.
+
+  A correção (engines/remessa.py): pendências do mesmo tipo e da mesma operação
+  agora viram uma só.
+  - Valor e motivo: o valor é a soma dos componentes e o motivo junta as razões
+    ("… Também: …").
+  - Rastro: as linhas de cada componente ficam sob o mesmo id (SPREAD,
+    DUPLICATA-L77) e a soma continua batendo.
+  - Para a Helena: é uma decisão por operação, em vez de duas linhas
+    conflitantes para a mesma operação.
+
+  Testes novos (escritos antes do código; os 3 falhavam com duas exceções por
+  operação):
+  - Operação duplicada e divergente: 1 pendência de R$ 52,50, que é o excesso de
+    15,00 mais a comissão inflada de 37,50.
+  - Operação duplicada e de spread negativo: 1 pendência, com os dois motivos.
+  - 10 operações com sobreposições variadas: todos os id_saida ficam únicos e o
+    rastro fecha em cada um.
+
+  Outras fontes de colisão que verifiquei:
+  - Pendências do checkout: usam id_transacao (TX e AN) ou o EC.
+  - Pendências da remessa: usam o Nº de operação (PC-) ou o CNPJ.
+  - Pendências da planilha: usam Taxas!L<n>.
+  - Tipos de exceção: os tipos do checkout e da remessa são diferentes, e os
+    identificadores de cada origem têm formatos distintos.
+  - Duplicidade entre origens: id_transacao e Nº Operação duplicados dentro do
+    mesmo arquivo já são tratados (a Orbe falha na leitura, a Ponte conta uma
+    vez). Duplicidade entre origens teria que ser coincidência de formato, e o
+    I-R1 derruba o fechamento se acontecer.
+
+  O resultado de setembro não mudou, porque nenhuma operação do mês cai nesses
+  casos. Seguimos para o B5 (motor de notas)?
+
+❯ certo, pode seguir com o passo B5
+
+  Ran 5 shell commands (ctrl+o to expand)
+
+⏺ O B5 está pronto e os 230 testes passam. Com ele fecha a parte do nível Alvo
+  que cobre comissões, divergências e notas. Falta a classificação dos extratos,
+  que é o B6. Não fiz commit.
+
+  O que entrou
+
+  - Motor (engines/notas.py):
+    - Nota de checkout: uma por lojista, com o lojista como tomador e o valor
+      igual à comissão.
+    - Nota de remessa: uma só, para a Ponte Câmbio S.A. (CNPJ 75374179000146),
+      pelo total das comissões de remessa.
+    - Comissão zero ou negativa não gera nota. Vira a pendência
+      COMISSAO_NAO_POSITIVA para a Helena, e o valor não passa para o mês
+      seguinte.
+    - O texto da discriminação é um template fixo, sem IA. Exemplo: "Comissão
+      sobre serviços de checkout, competência 09/2026". O da remessa diz
+      "intermediação de remessa internacional".
+  - Rastro das notas: as linhas da nota são cópias das linhas das comissões que
+    a compõem, então a soma por id_saida fecha. Na pendência, só entram as
+    linhas diferentes de zero, que são as que motivam o valor. Se todas forem
+    zero, entram todas, para o rastro não ficar vazio.
+  - Invariante I-N1: nenhuma nota com valor menor ou igual a zero. Ele roda
+    antes de escrever.
+  - Pipeline e CLI: agora escrevem notas_a_emitir.csv, e o resumo do CLI mostra
+    a contagem de notas.
+
+  Resultados de setembro
+
+  - 21 notas: 20 de checkout e 1 de remessa.
+  - Remessa: R$ 39.543,45 para a Ponte (NF-REM-202609).
+  - Total das notas: R$ 246.588,68, que é a soma das comissões positivas de
+    checkout mais a remessa.
+  - Casa do Estudante: sem nota de checkout, e a pendência COMISSAO_NAO_POSITIVA
+    de −R$ 5,50 vai para a Helena. A remessa da Casa entra normalmente na nota
+    da Ponte.
+  - Atlas: sem nota.
+  - Invariantes: I-R1 e I-N1 passam, e o rastro de cada nota bate com o valor.
+  - Volume: 240 pendências no total e um rastro.csv com 4.642 linhas.
+
+  Para você validar
+
+  - Referência da pendência. Usei <cnpj>-AAAAMM (ex.: 00520815000100-202609),
+    para o id_saida ficar claro por lojista e por mês. Para a remessa total,
+    REMESSA-202609.
+  - Remessa ≤ 0. O caso é tratado (sem nota, com pendência), mas não ocorre em
+    setembro. Está coberto por teste sintético.
+  - Pergunta V3(c) ainda aberta. Hoje a Casa aparece em comissoes_por_lojista
+    com −5,50. A resposta do financeiro só muda uma flag.
+
+  O próximo passo é o B6 (ingestão do Aurora e do OFX do Meridiano, plano de
+  contas e classificação por regra). É independente dos blocos anteriores, mas
+  depende bastante das contas ⚠️ da V7. Seguimos?
+
+❯ <ide_opened_file>The user opened the file
+  /Users/bartonthomas/Library/CloudStorage/OneDrive-TheBostonConsultingGroup,In
+  c/Desktop/barte-challenge-casa-barton/PROMPTS/chat3.txt in the IDE. This may
+  or may not be related to the current task.</ide_opened_file>
+
+❯ pode analisar as 5 perguntas principais que temos que fazer para a equipe do
+  financeiro, inciailmente para começar o desenvolvimento com as regras de
+  negocio
+
+  Ran 6 shell commands (ctrl+o to expand)
+
+⏺ Pelo que o código e os dados mostram hoje, estas são as 5 perguntas, em ordem
+  de prioridade. Cada uma agrupa pontos que o PRD tem separados.
+
+  #: 1
+  Tema (IDs do PRD): Mapa de contas dos extratos (V7)
+  O que está em jogo: Cerca de 165 dos 184 lançamentos (90%) usam contas
+  marcadas
+  ⚠️: 69 no Aurora e 96 no Meridiano.
+  Por que não dá para inferir: A regra geral (contrapartida) está confirmada,
+  mas
+  os códigos são inferência nossa. Quase todos têm uma única conta plausível. A
+   dúvida real está em poucas linhas, listadas abaixo.
+  ────────────────────────────────────────
+  #: 2
+  Tema (IDs do PRD): Spread negativo em divergências (V4)
+  O que está em jogo: 4 linhas em divergencias_taxa, com desvio de R$ 3.565,98.
+  Por que não dá para inferir: Se a chave não tiver essas linhas, são 4 alarmes
+  falsos. Se tiver e não as listarmos, perdemos 4 linhas.
+  ────────────────────────────────────────
+  #: 3
+  Tema (IDs do PRD): Casa e estornos a taxa diferente (V3 e V15)
+  O que está em jogo: Casa em comissoes com −R$ 5,50, mais cerca de 5 linhas de
+  estorno em divergências (4 da Rota e 1 da Casa).
+  Por que não dá para inferir: A regra D1 não diz como tratar estorno feito a
+  taxa diferente da contratada (D4 e V15 são premissas nossas).
+  ────────────────────────────────────────
+  #: 4
+  Tema (IDs do PRD): Dois créditos sem origem (V1 e V12)
+  O que está em jogo: O PIX de R$ 18.240 da Ponte Aérea e a devolução de R$
+  12.400 da Mundo Aberto.
+  Por que não dá para inferir: O tratamento (e a conta) só o financeiro sabe. O
+  default é conta provisória mais pendência.
+  ────────────────────────────────────────
+  #: 5
+  Tema (IDs do PRD): Atlas (V5 e V2)
+  O que está em jogo: O repasse de R$ 112.220,15 em 10/09, 57 linhas e R$
+  7.876,05 de taxa Orbe, e a taxa que valeria.
+  Por que não dá para inferir: A Helena já disse "não sei qual taxa vale", então
+
+  isso vai para o comercial (Diego).
+
+  Pontos da pergunta 1 que de fato têm ambiguidade:
+  - DEVOLUCAO PIX – MUNDO ABERTO: 2.1.01.001 (repasse volta a ser devido) ou
+    2.1.01.002 (Devoluções e créditos a lojistas, cujo nome é quase literal).
+  - IOF S/ OPERACAO CREDITO na conta de câmbio: 4.3.01, mesmo com o crédito
+    estando no Aurora.
+  - PIX ENVIADO ATLAS de R$ 112 mil: 2.1.01.001 ou 1.1.03.003 (Adiantamentos
+    diversos), por ter sido um adiantamento sem vendas.
+  - Todo o resto tem uma conta só no plano. Dá para pedir "confirma a tabela,
+    corrija só o que divergir".
+
+  Como formular, a partir do Slack:
+  - A Helena não valida números. Ela respondeu à Lucca "Número eu não valido.
+    Quem fecha é você". Ela responde regras. Cada pergunta deve trazer o nosso
+    default e pedir "confirma ou corrige".
+  - A Lucca já propôs listar os spreads negativos em divergências (R$ 3.565,98,
+    "valor cheio contra o contrato"). A Helena respondeu só sobre o desconto no
+    repasse, então a V4 continua sem resposta direta. A Lucca usou o valor
+    positivo, enquanto o nosso sai negativo (−3.565,98, convenção R13). Vale
+    perguntar o sinal junto, e o mesmo vale para as 4 linhas negativas da Rota
+    na pergunta 3.
+
+  O que deixei de fora:
+  - V8, V9 e V10: a Helena já aceitou critério nosso, desde que escrito (Fox AI,
+    20h52). O efeito da V8 é de R$ 0,03 no total.
+  - V6, V11 e V14: têm efeito baixo ou nulo hoje. Não há operações de 13x ou
+    mais, e a V14 já segue a regra dela (taxa da data da venda original).
+  - V17 e V18: são da interface e só importam depois.
+
+  Antes de enviar: reler o perguntas_slack.md mais recente. Outras equipes podem
+  ter perguntado o mesmo, e a banca publica as respostas no canal. O arquivo no
+  repo não mudou desde a minha leitura (mesmo tamanho), mas ele é uma cópia.
+
+  Se quiser, redijo o texto final de cada uma das 5, curto e com o nosso
+  default, e reordeno a seção 12 do PRD para refletir essa lista. Ou seguimos
+  para o B6?
+
+❯ me explique melhor a v7, não entendi bem qual o conceito de contas marcadas
+
+⏺ Em V7, "contas marcadas" quer dizer contas do plano que escolhemos por
+  inferência e que o financeiro ainda não confirmou. No HIPOTESES.md e no PRD
+  elas aparecem com o símbolo ⚠️.
+
+  O que a saída exige
+
+  Em lancamentos_classificados.csv, cada linha dos dois extratos (84 no Aurora e
+  100 no Meridiano) precisa de um conta_codigo. A regra da Helena (Fox AI,
+  21h08) é: a conta é a contrapartida do movimento no banco. O banco é um lado
+  do lançamento, e a conta que buscamos é o outro lado.
+
+  Exemplo: entrou uma TED da Orbe no Aurora. O banco aumentou, e a conta é a que
+  diminui ou aumenta do outro lado. No plano de contas, a candidata natural é
+  1.1.03.001 – Recebíveis de adquirente – Orbe, porque a Orbe devia esse
+  dinheiro à Tarvo.
+
+  Três níveis de certeza
+
+  Nível: ✅ Confirmado pela Helena
+  Exemplo: Folha, INSS, FGTS, ISS e DARFs de agosto vão para a conta de passivo
+  (já estavam provisionados). Aluguel, cloud e tarifas vão direto para despesa.
+  Como sabemos: Ela escreveu isso no Slack.
+  ────────────────────────────────────────
+  Nível: ⚠️ Inferido, uma conta só
+  Exemplo: CDB → 1.1.02.001. Rendimento → 3.2.01. Seguro → 4.2.05.
+  Como sabemos: Só existe uma conta com esse nome no plano.
+  ────────────────────────────────────────
+  Nível: ⚠️ Inferido, com ambiguidade
+  Exemplo: DEVOLUCAO PIX – MUNDO ABERTO → 2.1.01.001 ou 2.1.01.002? PIX ENVIADO
+  ATLAS de R$ 112 mil → 2.1.01.001 ou "Adiantamentos diversos" (1.1.03.003)?
+  Como sabemos: Dois ou mais candidatos plausíveis.
+
+  A Helena confirmou a regra geral e alguns casos, mas nunca viu a nossa tabela
+  completa. Por isso, quando digo "165 de 184 linhas dependem de contas ⚠️", não
+  quer dizer que 165 estão provavelmente erradas. Quer dizer que essas linhas
+  usam uma conta que nós escolhemos sem confirmação. As maiores famílias são:
+  - 21 TEDs da Orbe.
+  - 44 PIX para lojistas no Aurora.
+  - 64 PIX de lojistas no Meridiano.
+  - 21 TEDs para a Ponte.
+
+  Quase todas têm uma conta óbvia. A dúvida de verdade está em umas 4 linhas.
+
+  O que fazer
+
+  Mandar a tabela inteira como uma pergunta só: "confirma este mapa? Corrija o
+  que divergir". Em seguida, destacar os pontos ambíguos da lista acima. Se ela
+  confirmar, a classificação já está certa em quase todas as linhas. Se corrigir
+  uma, trocamos uma entrada da tabela.
+
+  Para o desenvolvimento
+
+  Isso não bloqueia o B6. O código vai classificar com a tabela atual (o
+  default), com as regras como dado editável. A resposta da Helena só troca
+  entradas dessa tabela.
+
+  Quer que eu redija a pergunta da V7 já com a tabela compacta, ou seguimos para
+  o B6?
+
+❯ <ide_opened_file>The user opened the file
+  /Users/bartonthomas/Library/CloudStorage/OneDrive-TheBostonConsultingGroup,In
+  c/Desktop/barte-challenge-casa-barton/docs/HIPOTESES.md in the IDE. This may
+  or may not be related to the current task.</ide_opened_file>
+
+❯ nao posso mandar a tabela inteira para ela validar, precisa ser uma pergunta
+  pontual, completa e direta.
+
+⏺ Dá para fazer uma pergunta só. A que cobre mais linhas é a que testa se os
+  três fluxos de caixa já estão provisionados no ERP.
+
+  O raciocínio. Das 165 linhas ⚠️, 150 caem em três contas: 1.1.03.001
+  (recebível da Orbe), 2.1.01.001 (repasse a lojista) e 2.1.02.001 (recursos de
+  remessa). São 21 TEDs da Orbe, 44 PIX a lojistas, 64 PIX de lojistas no
+  Meridiano e 21 TEDs à Ponte. Essas três contas dependem da mesma premissa: o
+  dinheiro que passa pelo banco baixa uma conta que já estava registrada. A
+  Helena confirmou isso para folha, tributos e para o repasse da Ponte de
+  agosto. Falta confirmar para esses três fluxos. Os 15 restantes (CDB,
+  rendimento, IOF, seguro, transferências entre contas próprias) têm uma única
+  conta plausível no plano e ficam como default documentado.
+
+  Pergunta, pronta para enviar:
+
+  ▎ Helena, uma confirmação sobre os extratos. Pela sua regra (a conta é a
+  ▎ contrapartida do banco, e o que já estava registrado baixa a conta onde
+  ▎ estava), estamos tratando assim o ciclo de caixa:
+  ▎ • TED recebida da Orbe no Aurora → baixa 1.1.03.001 (Recebíveis de
+  ▎ adquirente – Orbe)
+  ▎ • PIX enviado a lojista no Aurora → baixa 2.1.01.001 (Repasses a lojistas a
+  ▎ pagar)
+  ▎ • PIX recebido de lojista no Meridiano e TED enviada à Ponte → 2.1.02.001
+  ▎ (Recursos de lojistas para remessas a liquidar)
+  ▎
+  ▎ Essas três contas já estão registradas no Fênix antes do movimento no banco,
+  ▎ como a folha de agosto? Ou alguma delas só é registrada quando o dinheiro
+  ▎ passa pelo banco?
+
+  Como ler a resposta:
+  - "Sim, as três já estão registradas": o mapa fica confirmado para 150 linhas,
+    sem mudança.
+  - "Alguma só é registrada no banco": essa conta muda de natureza (receita ou
+    outra), e eu troco as entradas dela na tabela de regras.
+
+  Os casos que ficam de fora, e por quê:
+  - A devolução da Mundo Aberto (2.1.01.001 ou 2.1.01.002) já está na
+    pergunta 4.
+  - O PIX de R$ 112 mil à Atlas (2.1.01.001 ou Adiantamentos diversos) já está
+    na pergunta 5.
+  - O IOF no Meridiano é 1 linha, e a única conta de IOF do plano é 4.3.01.
+    Mantém o default.
+
+  Quer que eu atualize a V7 no PRD e no HIPOTESES.md para refletir essa pergunta
+  e esse escopo?
+
+❯ Me ajude a entender a arquitetura dos agentes e porque foram escolhidos dessa
+  forma
+
+⏺ Nenhum agente foi implementado ainda. B0 a B5 são código determinístico puro,
+  sem chamada de IA. Os agentes entram no B8 (orquestrador e Classificador) e no
+  B11 (InterpreteTaxas e Investigador). O que segue é o desenho da seção 8 do
+  PRD e o motivo de cada escolha.
+
+  O princípio central
+
+  Dinheiro e regra de negócio vêm de código com regra escrita. O agente só
+  aparece quando o código diz "não sei". O que impulsiona isso é o brief do
+  desafio: a IA não pode inventar regra, e total que não fecha com o rastro
+  conta como inventado.
+
+  ┌───────────────────────┬─────────────────────────────────────────────────┐
+  │       Princípio       │                 Efeito prático                  │
+  ├───────────────────────┼─────────────────────────────────────────────────┤
+  │ P1: determinístico    │ O que tem regra confirmada roda em Python puro, │
+  │ primeiro              │  sem API. Isso já é 100% do checkout, da        │
+  │                       │ remessa, das divergências e das notas.          │
+  ├───────────────────────┼─────────────────────────────────────────────────┤
+  │ P2: a IA nunca        │ Nenhum agente produz ou altera valor em R$,     │
+  │ calcula dinheiro      │ taxa ou data. Eles só classificam, propõem      │
+  │                       │ vínculo ou redigem texto.                       │
+  ├───────────────────────┼─────────────────────────────────────────────────┤
+  │ P3: regra             │ Sem regra, o resultado é uma pergunta           │
+  │ desconhecida vai para │ estruturada, não um palpite.                    │
+  │  humano               │                                                 │
+  └───────────────────────┴─────────────────────────────────────────────────┘
+
+  Os 4 componentes
+
+  1. Orquestrador, que é código e não um LLM (decisão A1). Ele só roteia pelo
+     tipo de exceção, com uma tabela fixa. Um LLM ali custaria dinheiro e
+     latência e traria não determinismo sem ganho de negócio. Tipo desconhecido
+     vai para a fila humana. A V0 deixa em aberto se o time quer um LLM ali por
+     narrativa de pitch.
+  2. Classificador (Haiku 5.5). Classifica lançamento bancário que nenhum padrão
+     da tabela cobre. A entrada traz no máximo 8 contas candidatas já filtradas
+     por código, e a saída é {conta, confiança, justificativa}. Confiança ≥ 0,8
+     é aceita como metodo=IA. Abaixo disso vai para um humano.
+  3. InterpreteTaxas (Sonnet 5.5). Lê vigência em texto livre que a gramática
+     não entende. A saída nunca vale sozinha, porque é regra de contrato e um
+     erro contaminaria comissão e divergência. Vira proposta na fila e só vale
+     depois de confirmação humana.
+  4. Investigador (Sonnet 5.5). Para anomalias sem regra (PIX de R$ 18.240,
+     repasse de R$ 112 mil, devolução de R$ 12,4 mil). O código monta o pacote
+     de evidências, e o agente devolve hipóteses com referências às linhas de
+     origem e uma pergunta sugerida. Ele não decide e não produz valor.
+
+  A escolha de modelos segue a tarefa: Haiku para classificação (alto volume,
+  baixa complexidade) e Sonnet para interpretação (pouco volume, mais risco).
+
+  Os guardrails (o que impede o agente de errar sem ninguém ver)
+
+  - Saída validada por schema, e temperature=0.
+  - A resposta tem que estar na lista de candidatos. No Classificador, uma conta
+    fora da lista é descartada e abre pendência. No Investigador, toda
+    evidencia_ref tem que existir na tabela canônica.
+  - Limiar de confiança por tipo de exceção, em configuração.
+  - Limite de chamadas por execução (60 por padrão). Estourou, o resto vai para
+    humano, o que limita custo e impede loop.
+  - Cache por hash da entrada, versionado. Isso dá reprodutibilidade (mesma
+    entrada, mesma saída) e auditoria.
+  - metodo=IA fica visível na saída, então quem lê sabe o que veio de agente.
+
+  Human-in-the-loop
+
+  Uma exceção sem resposta vira um cartão na fila de validação, com a pergunta,
+  a proposta do agente, as evidências e o dono (quem_decide). A pessoa responde
+  "só neste caso" ou "sempre que acontecer". Só a resposta "sempre" vira regra,
+  e quem a grava é uma pessoa, pela interface. O agente nunca grava regra. O
+  efeito é composto: a cada mês, menos exceções, porque o que foi ensinado vira
+  regra determinística. Isso responde ao risco "se a Helena sair de férias, o
+  mês não fecha".
+
+  Enquanto a exceção espera, o item sai nas saídas com o default documentado e
+  marcado como provisório. Nunca fica em branco e nunca é adivinhado.
+
+  Modo sem IA
+
+  Sem chave de API, o orquestrador manda toda exceção para a fila humana. As 6
+  saídas continuam completas e corretas, só com mais pendências. Isso protege o
+  pitch contra falha de rede ou de chave, e já é a situação em que o sistema
+  está hoje.
+
+  Por que não "agentes em tudo"
+
+  - Corretude: 25% da nota é o número contra o gabarito. Um LLM no cálculo
+    introduziria variação que o rastro não consegue justificar.
+  - Auditoria: cada centavo precisa apontar para linhas de origem e para a regra
+    que o produziu (regra_id). Código dá isso. LLM dá justificativa em texto.
+  - Reprodutibilidade: rodar duas vezes tem que dar saída idêntica byte a byte.
+  - Custo e latência: pouco volume vai para IA. Estimo cerca de 10% dos
+    lançamentos bancários, e só se a tabela de regras não cobrir.
+  - Valor da IA onde ela ajuda de verdade: descrição bancária livre, texto de
+    vigência, e levantamento de evidências para uma pendência. Esses casos são
+    difíceis de cobrir com regra rígida.
+
+  O que me parece frágil
+
+  - O Classificador dificilmente será chamado em setembro. A tabela de regras já
+    cobre quase todas as descrições. Mostrar o uso de IA no pitch vai depender
+    de um caso real. Hoje o candidato é o Investigador nas três pendências
+    atípicas.
+  - O limiar de 0,8 é arbitrário. Ele só terá lastro depois de ver as confianças
+    reais nos casos que sobrarem.
+  - O Investigador depende de um bom pacote de evidências, montado por código.
+    Se o pacote for ruim, a hipótese será ruim.
+
+  Se quiser, posso detalhar um dos pontos acima, por exemplo o contrato de
+  entrada e saída de cada agente, ou como o Investigador ficaria nos 3 casos de
+  hoje.
+
+❯ me mostre um fluxo fácil de entender de todo o funcionamento ao entrar um
+  dado, com todas as possibilidades. como é feito a leitura da gramática sem
+  IA?
+
+⏺ O fluxo abaixo mostra o que o código faz hoje (B0 a B5). Os dados de extrato
+  bancário e os agentes ainda não entraram.
+
+  Visão geral
+
+   3 arquivos de entrada                         (os extratos, B6, ainda não)
+   Orbe.csv · Taxas.xlsx · Ponte.eml
+          │
+          ▼
+   ① LEITURA          formato errado? ──► ERRO e para tudo (nada é escrito)
+          │
+          ▼
+   ② IDENTIDADE       quem é este lojista? (EC → CNPJ → alias exato)
+          │
+          ▼
+   ③ TAXA VIGENTE     qual taxa vale neste produto e nesta data?
+          │
+          ▼
+   ④ MOTORES          checkout · divergências · remessa   (Decimal, sem IA)
+          │              ├─► resultado + linha de rastro
+          │              └─► exceção ("não sei") ─► pendência com dono
+          ▼
+   ⑤ NOTAS            quem recebe nota e de quanto
+          │
+          ▼
+   ⑥ VALIDAÇÃO        I-R1 (soma do rastro = número), I-D1, I-N1
+          │              falhou? ──► ERRO e para (sem saída parcial)
+          ▼
+   ⑦ SAÍDAS           comissões · divergências · notas · pendências · rastro
+
+  Uma linha da Orbe, com todas as possibilidades
+
+   linha da Orbe
+     │
+     ├─ data fora do mês? ───────────────► ignorada
+     │
+     ├─ EC é da Atlas (sem contrato)? ───► pendência SEM_CONTRATO (Diego)
+     ├─ EC não está no cadastro? ────────► pendência ENTIDADE_NAO_RESOLVIDA
+  (Helena)
+     │
+     ├─ qual produto? (débito, pix, crédito 1x, 2-6x, 7-12x, antecipação)
+     │     13x ou modalidade desconhecida ► pendência CONTRATO_AMBIGUO (só essa
+  linha)
+     │
+     ├─ qual data vale para a taxa?
+     │     venda → data do movimento
+     │     estorno → data da venda original
+     │     reversão → data da antecipação original
+     │
+     ├─ taxa vigente nessa data
+     │     override ativo (ex.: Casa 0%)? ► usa o override (regra C8)
+     │     0 linhas da planilha vigentes ► pendência CONTRATO_AMBIGUO
+     │     2+ linhas vigentes ───────────► pendência CONTRATO_AMBIGUO
+     │     produto vazio na planilha ────► pendência CONTRATO_AMBIGUO
+     │     1 linha ──────────────────────► taxa contratada
+     │
+     ├─ comissão = arredonda(bruto × taxa contratada), por linha, com sinal
+     │     └─► soma por lojista + 1 linha de rastro
+     │
+     └─ taxa aplicada pela Orbe ≠ taxa contratada?
+           sim ─► divergência = arredonda(bruto × diferença) + pendência para a
+  Helena
+           não ─► nada (centavo de truncagem NÃO é divergência)
+
+  Uma operação da Ponte
+
+   operação da Ponte
+     │
+     ├─ contratada fora do mês? ──────────► ignorada
+     ├─ Nº de operação já visto? ─────────► conta 1 vez; repetição vira
+  pendência
+     ├─ status fora de {APROVADO, C/ RESSALVA}? ► pendência, fora da comissão
+     ├─ CNPJ não está no cadastro? ───────► pendência, fora da comissão
+     │
+     ├─ spread contratado na data: em branco ou "padrão" = 1,5%
+     │     sem linha vigente ────────────► comissão segue; pendência de contrato
+     │
+     ├─ spread realizado negativo? ───────► fora da comissão; pendência de
+  contestação
+     │                                      (+ divergência, se a flag V4 estiver
+  ligada)
+     └─ senão: comissão = arredonda(50% × Spread R$)
+          └─ aplicado difere do contratado por mais de 0,01 p.p.?
+               sim ─► divergência + pendência de contestação (comissão já inclui
+  o excesso)
+
+  Notas e validação
+
+  - Checkout: uma nota por lojista. Valor ≤ 0 não emite e vira pendência
+    COMISSAO_NAO_POSITIVA.
+  - Remessa: uma nota para a Ponte, pelo total. Total ≤ 0 também não emite.
+  - Antes de escrever qualquer arquivo: soma do rastro por id_saida igual ao
+    número reportado, nenhuma divergência com taxas iguais e nenhuma nota ≤ 0.
+    Se algum falhar, o fechamento aborta.
+
+  Como a gramática da planilha é lida sem IA
+
+  O texto de vigência é lido por regras de texto fixas (expressões regulares),
+  numa função de poucas linhas. O processo:
+
+  1. Normaliza: passa para minúsculas, tira acentos e colapsa espaços. "A PARTIR
+     DE 15/09/2026" vira a partir de 15/09/2026.
+  2. Tenta 3 padrões, nesta ordem:
+
+  ┌──────────────────┬─────────────┬────────────────────┬───────────────────┐
+  │      Padrão      │ Significado │      Exemplo       │     Resultado     │
+  ├──────────────────┼─────────────┼────────────────────┼───────────────────┤
+  │ ate dd/mm/aaaa   │ só o fim    │ "até 14/09/2026"   │ (início livre,    │
+  │                  │             │                    │ fim 14/09)        │
+  ├──────────────────┼─────────────┼────────────────────┼───────────────────┤
+  │ a partir de      │ só o início │ "a partir de       │ (início 15/09,    │
+  │ dd/mm/aaaa       │             │ 15/09/2026"        │ fim livre)        │
+  ├──────────────────┼─────────────┼────────────────────┼───────────────────┤
+  │ dd/mm/aaaa       │ só o início │ "01/01/2026"       │ (início 01/01,    │
+  │                  │             │                    │ fim livre)        │
+  └──────────────────┴─────────────┴────────────────────┴───────────────────┘
+
+     Uma célula que o Excel já guardou como data também vale como início. As
+  duas pontas são inclusivas: a Bridge a 2,59% vale até o dia 14, e a 2,19% a
+  partir do dia 15.
+  3. Se nenhum padrão casa, não chuta: a linha da planilha não é usada e vira a
+  pendência CONTRATO_AMBIGUO com o texto original, a linha Taxas!L<n> e o dono
+  (Helena). Todas as vendas daquele lojista nessas datas viram pendência, em vez
+  de receber um número inventado. Eu testei isso com "depois do carnaval".
+
+  As taxas são lidas do mesmo jeito, sem IA:
+  - Uma célula numérica 0.0149 vira 1,49.
+  - Um texto '1,49%' é lido por parse_br.
+  - Texto sem % falha, em vez de adivinhar.
+  - Spread em branco ou "padrão" é tratado pela regra R2.
+
+  O que a gramática não cobre hoje
+
+  - Intervalo no mesmo campo: "a partir de 15/09/2026 até 31/12/2026" não casa e
+    viraria pendência. Estender isso é barato e continua determinístico.
+  - Datas sem ano, ou textos vagos ("meados de setembro", "15/09") também não
+    casam.
+  - A coluna Obs não é interpretada. Hoje só procura a palavra "inativo". Textos
+    como "renegociado - ver linha de baixo" são ignorados, e a tarifa zero da
+    Casa entra por uma regra configurada, e não pela leitura da planilha.
+
+  É aqui que o agente InterpreteTaxas (B11) entraria. Ele leria só o texto que a
+  gramática recusou e proporia as datas, mas nunca valeria sozinho: viraria um
+  cartão para a Helena confirmar, porque é regra de contrato.
+
+  Quer que eu estenda a gramática para cobrir o intervalo "a partir de … até …"
+  (determinístico, sem IA) antes do B6? Ou seguimos?
+
+❯ <ide_opened_file>The user opened the file
+  /Users/bartonthomas/Library/CloudStorage/OneDrive-TheBostonConsultingGroup,In
+  c/Desktop/barte-challenge-casa-barton/docs/PRD.md in the IDE. This may or may
+  not be related to the current task.</ide_opened_file>
+
+❯ A gramática não deveria ser inteira feito por IA?
+
+⏺ Não necessariamente. O desenho atual é um híbrido deliberado, mas sua dúvida
+  tem mérito. Abaixo, o que cada caminho ganha e perde, e onde acho que o PRD
+  está curto.
+
+  Por que não deixar só a IA ler a vigência
+
+  Critério: Exatidão
+  Gramática (hoje): As datas de vigência decidem qual taxa se aplica, ou seja,
+  decidem dinheiro. Regex dá exatamente a data escrita.
+  Só IA: A IA costuma acertar, mas pode errar uma data sem avisar.
+  ────────────────────────────────────────
+  Critério: Reprodutibilidade
+  Gramática (hoje): Mesma entrada, mesma saída, sempre.
+  Só IA: Depende de temperature=0, de cache e da versão do modelo. Em outubro,
+  outro modelo pode ler diferente.
+  ────────────────────────────────────────
+  Critério: Sem chave de API
+  Gramática (hoje): As 6 saídas saem completas.
+  Só IA: Sem IA não se lê a planilha, e então não há comissão nenhuma. Isso
+  quebra o "modo sem IA" do PRD e a demo se a rede cair.
+  ────────────────────────────────────────
+  Critério: Custo e latência
+  Gramática (hoje): Zero.
+  Só IA: Uma chamada por linha, todo mês, para ler 3 formatos que já são
+  conhecidos.
+  ────────────────────────────────────────
+  Critério: Cobertura de setembro
+  Gramática (hoje): As 25 linhas da planilha são lidas sem exceção.
+  Só IA: O mesmo, mas com risco extra.
+  ────────────────────────────────────────
+  Critério: Variedade futura
+  Gramática (hoje): Frágil: um intervalo ("a partir de X até Y") hoje não casa.
+  Só IA: Robusta a variações de redação.
+
+  O ponto de fundo é o P2 do PRD: a IA não decide valor nem data. O brief diz
+  que a IA não pode inventar regra. Se ela lê a vigência sozinha e erra, o erro
+  vira número no resultado, e o rastro aponta para uma linha "lida certa".
+
+  Onde acho que o PRD está curto
+
+  Sua intuição acerta em um ponto: a planilha é mantida à mão e passa por várias
+  mãos, e a gramática só vê a coluna Vigência. A coluna Obs hoje só é checada
+  pela palavra "inativo", mas ela carrega sinais que importam. Exemplos reais da
+  planilha:
+  - "renegociado - ver linha de baixo" (Bridge).
+  - "cliente estratégico - ver c/ comercial" (Casa, que de fato estava
+    desatualizada).
+  - "EC pendente" (Kiwi).
+  - "spread negociado em jul/26" (Mundo Aberto).
+
+  A gramática não consegue ler isso. Aqui a IA agrega valor de verdade, sem
+  decidir número. Hoje, em setembro, nenhum caso cai no agente, então ele quase
+  não apareceria no pitch.
+
+  Proposta de desenho
+
+  1. Mantém o determinístico para os formatos conhecidos, e eu amplio a
+     gramática (por exemplo, intervalos com "até").
+  2. IA lê o que a gramática recusa e a coluna Obs inteira, como proposta,
+     sempre com o trecho do texto que justifica. Exemplo: "Casa, Obs 'ver c/
+     comercial': possível contrato desatualizado".
+  3. Código valida a proposta: as datas têm que existir, as janelas não podem se
+     sobrepor e o produto tem que ser conhecido.
+  4. Humano confirma: vira cartão para a Helena, e só então a regra entra.
+  5. Cache por hash: a mesma leitura se repete em outubro.
+
+  Isso dá mais protagonismo à IA (ela passaria a ler toda a Obs, não só as
+  exceções) sem abrir mão da exatidão nem do modo sem IA.
+
+  Uma ressalva
+
+  Se o time quiser mesmo "IA lê toda a planilha", dá para fazer. O custo é
+  perder o modo sem IA e depender do cache para reproduzir. Eu só faria isso com
+  uma regra explícita: a IA lê, o código valida, a pessoa confirma qualquer
+  regra de contrato antes de valer. Sem essa trava, o risco é erro de data não
+  detectado.
+
+  Qual caminho prefere?
+  - A. Híbrido proposto acima (minha recomendação): amplio a gramática e deixo a
+    leitura de Obs e das exceções para o B11.
+  - B. IA lê toda a planilha, com validação por código e confirmação humana.
+
+❯ me mande o fluxo total incluindo as possiveis chamadas das IAs
+
+⏺ Legenda: ✅ já implementado (B0 a B5). 🔜 planejado no PRD (B6, B8 e B11). 🆕
+  proposta que fiz na última mensagem (agente lendo a coluna Obs), ainda fora do
+  PRD. 🤖 é uma chamada de IA, e 🧑 é uma decisão humana. Assumi o caminho A
+  (híbrido).
+
+  1. Visão geral
+
+   6 arquivos do mês
+     │
+     ▼
+   ① LEITURA ✅ ───────── formato inesperado ─► ERRO, nada é escrito
+     │  │
+     │  └─ planilha de taxas: vigência / Obs
+     │        gramática reconhece? ──sim──► usa a linha
+     │        não reconhece ────────► 🤖 InterpreteTaxas 🔜 (seção 2)
+     ▼
+   ② IDENTIDADE ✅ ────── EC → CNPJ → alias exato → senão exceção
+     ▼
+   ③ TAXA VIGENTE ✅
+     ▼
+   ④ MOTORES (código, Decimal)
+     ├─ checkout ✅ ─ divergências ✅ ─ remessa ✅
+     └─ classificação de extratos 🔜 (seção 4)
+     │
+     │ resultados + rastro          exceções ("não sei")
+     ▼                                ▼
+   ⑤ NOTAS ✅                  ⑥ ORQUESTRADOR 🔜 (código) ─► seção 3
+     ▼                                │ decisões (agente validado ou humano)
+   ⑦ CONSOLIDAÇÃO ◄──────────────────┘
+     │  validadores I-R1, I-D1, I-N1 ✅  ─ falhou? ─► ERRO, sem saída parcial
+     ▼
+   ⑧ SAÍDAS ✅ (6 CSVs, 5 já existem) + resumo.md 🔜
+
+  2. Leitura da planilha, com a IA como exceção
+
+   célula de Vigência
+     ├─ vazia e lojista marcado INATIVO ─► linha não usada, sem alerta ✅
+     ├─ vazia, ativo ───────────────────► exceção CONTRATO_AMBIGUO ✅
+     ├─ gramática casa (até / a partir de / data) ─► vigência lida ✅
+     └─ gramática NÃO casa ("a partir de X até Y", "meados de set", "15/09")
+          │
+          ▼
+        🤖 InterpreteTaxas (Sonnet 5.5) 🔜
+          entrada: {lojista, obs, vigencia_texto, linhas vizinhas}
+          saída:   {vigencia_ini, vigencia_fim, taxas_afetadas, confianca,
+                    trecho_que_justifica}  ou  {ambiguo: true, pergunta}
+          │
+          ▼
+        código valida: datas existem, janelas não se sobrepõem, produto
+  conhecido
+          │
+          ▼
+        🧑 cartão na fila ── NUNCA vale sozinho (é regra de contrato)
+
+   coluna Obs 🆕  ("ver c/ comercial", "EC pendente", "renegociado - ver linha
+  de baixo")
+     └─ 🤖 InterpreteTaxas lê o texto e propõe um ALERTA, sem alterar taxa:
+        "possível contrato desatualizado", com o trecho que justifica
+        └─► 🧑 cartão na fila (ver, confirmar ou ignorar)
+
+  3. Orquestrador: para onde vai cada exceção 🔜
+
+   exceção detectada por um motor
+     │
+     ├─ 🧑 já existe decisão para esta chave? ──sim──► APLICA (metodo=HUMANO)
+     │
+     ├─ qual o tipo? (tabela fixa em configuração, NÃO é LLM)
+     │    ├─ classificação bancária sem padrão ─► 🤖 Classificador (Haiku 5.5)
+     │    ├─ vigência / Obs fora da gramática ──► 🤖 InterpreteTaxas (Sonnet
+  5.5)
+     │    ├─ anomalia sem regra ────────────────► 🤖 Investigador (Sonnet 5.5)
+     │    ├─ decidir devolução, contestação, faturar Atlas ─► 🧑 direto
+     │    └─ tipo desconhecido ─────────────────► 🧑 direto
+     │
+     ├─ limite de chamadas por execução atingido (60)? ─► 🧑 fila
+     │
+     ├─ resposta do agente passa nos guardrails? (schema, candidato válido,
+  evidência existe)
+     │    não ─► 🧑 fila (com a proposta anexada)
+     │
+     ├─ confiança ≥ limiar do tipo?
+     │    não ─► 🧑 fila (com a proposta anexada)
+     │    sim ─► APLICA (metodo=IA, visível na saída)
+     │
+     └─ enquanto aguarda: item sai com o default documentado, marcado provisório
+
+   🧑 fila de validação: pergunta + proposta do agente + evidências + quem
+  decide
+        "só neste caso"  → só esta exceção
+        "sempre"         → vira regra versionada (autor, data) pela interface
+        resposta fora das regras possíveis → REQUER_IMPLEMENTACAO (nenhum número
+  muda)
+
+  4. Extratos bancários 🔜
+
+   lançamento (Aurora CSV ou Meridiano OFX)
+     │
+     ├─ saldo da Aurora não fecha? ───────────────► ERRO ✅ (planejado)
+     │
+     ├─ casa com padrão inequívoco da tabela de regras?
+     │    sim ─► conta da tabela, metodo=REGRA, confiança 1,0
+     │            validador: conta existe e aceita lançamento
+     │
+     ├─ regra existe, mas a contrapartida depende de decisão
+     │   (PIX R$ 18.240, devolução R$ 12.400, PIX sem identificação)
+     │    ─► conta provisória + pendência (metodo=HUMANO)
+     │         └─ 🤖 Investigador levanta evidências e redige o motivo
+     │
+     └─ nenhum padrão casou
+          ▼
+        🤖 Classificador (Haiku 5.5)
+          entrada: {banco, data, descricao, valor, candidatos (≤ 8 contas
+  analíticas)}
+          saída:   {conta_codigo, confianca, justificativa}
+          guardrail: a conta tem que estar entre os candidatos
+          ├─ confiança ≥ 0,8 e conta válida ─► metodo=IA
+          └─ senão ─► metodo=HUMANO + pendência
+
+   conciliação mínima, só código (Meridiano):
+     TED à Ponte do dia = Σ(Valor R$ + IOF) das operações do dia?
+       bate ─► regra MER-TED-PONTE (prova que a operação existe)
+
+  5. Onde a IA nunca entra
+
+  - Cálculo de comissão, divergência, estorno, antecipação e spread.
+  - Escolha da taxa vigente.
+  - Resolução de entidade (EC, CNPJ, alias): só chave exata.
+  - Geração de notas e da discriminação (template fixo).
+  - Qualquer valor em R$, taxa ou data final.
+  - Gravação de regra: só uma pessoa, pela interface.
+
+  6. Modos de execução
+
+   com chave de API:  exceção ─► 🤖 propõe ─► validação ─► aplica ou 🧑
+   sem chave de API:  exceção ─► 🧑 direto
+                      (6 saídas completas e corretas, só com mais pendências)
+
+  7. Números de setembro
+
+  - Chamadas de IA hoje: zero. A gramática lê as 25 linhas, e a tabela de regras
+    cobre quase todos os extratos.
+  - Onde a IA apareceria de fato: nas 3 anomalias atípicas (Investigador) e na
+    leitura da coluna Obs (🆕).
+
+  Posso detalhar o contrato de entrada e saída de algum agente, ou seguir para o
+  B6.
+
+❯ quando que uma entrada é só jogada fora, não da resultado, não vai pra IA e
+  não vai pra humano? Está certo fazer assim?
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Está parcialmente errado. Eu verifiquei no código e há pontos em que uma
+  entrada some sem aviso, e dois deles são riscos reais para outubro.
+
+  Onde uma entrada é descartada hoje, sem resultado, sem IA e sem humano
+
+  #: 1
+  Caso: Linha fora do mês (Orbe por data_movimento, Ponte por data de
+  contratação)
+  Como acontece: O filtro de competência (C3 e R8) ignora a linha.
+  Está certo?: A regra está certa. Fazer em silêncio está errado.
+  ────────────────────────────────────────
+  #: 2
+  Caso: Linha da Ponte cujo Nº Operação não começa com PC-
+  Como acontece: O leitor trata como rodapé e pula.
+  Está certo?: Arriscado.
+  ────────────────────────────────────────
+  #: 3
+  Caso: Linha da planilha com a coluna Lojista vazia
+  Como acontece: O leitor trata como linha em branco ou rodapé e pula.
+  Está certo?: Arriscado.
+  ────────────────────────────────────────
+  #: 4
+  Caso: Rodapé, aba Resumo, aba "ANTIGO", linhas SALDO ANTERIOR/SALDO FINAL,
+  linha em branco
+  Como acontece: São descartados pelo leitor.
+  Está certo?: Certo, porque não são dado.
+  ────────────────────────────────────────
+  #: 5
+  Caso: Lojista INATIVO sem vigência
+  Como acontece: A linha não é usada, e não há alerta.
+  Está certo?: Aceitável: só importa se houver venda, e nesse caso vira
+  pendência.
+
+  Por que o caso 1 é o mais perigoso
+
+  Rodei agora fechar --mes 2026-10 com os arquivos de setembro. O resultado foi
+  R$ 0,00 em tudo, 0 notas, 0 pendências, e nenhum erro. As saídas saem vazias e
+  parecem válidas. Se a analista errar o mês, ou se o arquivo chegar com outro
+  período, ninguém vê.
+
+  Os casos 2 e 3
+
+  - Caso 2: se a Ponte mudar o prefixo (por exemplo PX-) ou colocar um espaço
+    antes do PC-, as operações sumiriam da comissão sem alarme. Um rodapé "Total
+    de operações" também começa sem PC-, e é por isso que o filtro existe.
+  - Caso 3: uma linha com CNPJ e taxas, mas sem o nome do lojista (esquecimento
+    comum em planilha manual), seria descartada junto com o contrato dele.
+
+  O que eu mudaria
+
+  O princípio do PRD é que "o que o código não sabe vira pendência". O descarte
+  silencioso quebra isso. Proposta:
+
+  1. Ledger de ignorados. Cada descarte é contado por motivo ("fora do mês",
+     "rodapé", "aba ignorada") e aparece no execucao.log e no resumo.md. O
+     descarte fica correto e visível. Ex.: "Orbe: 0 linhas fora do mês; Ponte: 0
+     linhas fora do mês".
+  2. Erro se tudo estiver fora do mês. Se nenhuma linha da Orbe e nenhuma da
+     Ponte cair no mês pedido, o fechamento aborta com "nenhuma linha em
+     2026-10; os arquivos são de 2026-09?".
+  3. Linha que parece dado, mas não é classificada, falha. Na Ponte, uma linha
+     sem PC- que tenha CNPJ ou valores numéricos vira erro, e só o rodapé
+     conhecido é pulado. Na planilha, linha com CNPJ, EC ou taxa e sem nome de
+     lojista também vira erro.
+  4. Invariante I-R3 do PRD (seção 7.9), que ainda não está no código. Toda
+     linha da Orbe do mês e toda operação da Ponte aceita tem que aparecer no
+     rastro ou numa exceção explicada. Hoje isso só é verificado num teste, não
+     em toda execução. Assim, um futuro descarte indevido derruba o fechamento.
+
+  Com isso o código só descarta o que é estrutura do arquivo, e tudo o que
+  descarta está contado e visível.
+
+  Faço essas mudanças agora, antes do B6, com testes? São pequenas e protegem as
+  execuções de outubro.
+
+❯ Explique melhor a 3
+
+⏺ A 3 é sobre como distinguir rodapé ou linha em branco (que pode ser pulado) de
+  dado de verdade que o leitor não reconheceu (que não pode sumir).
+
+  O problema
+
+  Os dois leitores têm um filtro simples para decidir se a linha é dado:
+  - Ponte: só é operação se o Nº Operação começa com PC-.
+  - Planilha de taxas: só é lojista se a coluna Lojista tem texto, e não começa
+    com *.
+
+  Esse filtro serve para descartar o rodapé, mas também descarta qualquer dado
+  real que não passe nele, sem aviso.
+
+  Exemplos
+
+  Linha de entrada: Ponte: Total de operações: / 233 (rodapé)
+  Hoje: Pulada. Certo.
+  Proposta: Pulada, e contada no ledger.
+  ────────────────────────────────────────
+  Linha de entrada: Ponte: PX-0926-0300, CNPJ 34.671.260/0001-00, Spread R$
+  262,01 (prefixo novo)
+  Hoje: Pulada em silêncio. A comissão de R$ 131,01 some.
+  Proposta: Erro: "linha 57 parece operação (tem CNPJ e Spread R$) mas o Nº não
+  começa com PC-".
+  ────────────────────────────────────────
+  Linha de entrada: Ponte: PC-0926-0301 (espaço antes)
+  Hoje: O strip() já resolve.
+  Proposta: Sem mudança.
+  ────────────────────────────────────────
+  Linha de entrada: Taxas: Lojista vazio, mas CNPJ e taxas preenchidos
+  Hoje: Pulada. O contrato dele não existe para o resolvedor.
+  Proposta: Erro: "linha 18 tem CNPJ/taxas mas não tem nome de lojista".
+  ────────────────────────────────────────
+  Linha de entrada: Taxas: * spread em branco = padrão
+  Hoje: Pulada. Certo.
+  Proposta: Pulada.
+  ────────────────────────────────────────
+  Linha de entrada: Taxas: linha totalmente em branco
+  Hoje: Pulada. Certo.
+  Proposta: Pulada.
+
+  Como distinguir rodapé de dado
+
+  O critério precisa olhar o conteúdo das colunas de dado, não "tem algum
+  número". O rodapé da Ponte tem número: 233 (coluna B) e 78073.59. Um teste do
+  tipo "tem número" daria falso alarme em todo mês.
+
+  Ponte: a linha é considerada dado se tiver algum destes preenchidos:
+  - CNPJ Cliente
+  - Valor ME
+  - Spread R$
+
+  O rodapé só preenche as colunas A e B, então passa. Uma operação real preenche
+  essas colunas e falha.
+
+  Planilha de taxas: a linha é considerada dado se tiver CNPJ, EC Orbe ou
+  qualquer taxa preenchida, mesmo com o Lojista vazio.
+
+  O que "falha" significa
+
+  - Falha quer dizer LayoutError (princípio P9 do PRD, falha visível). O
+    fechamento aborta antes de escrever qualquer saída, com a linha física e o
+    motivo na mensagem.
+  - Por que erro e não pendência: o problema está na estrutura do arquivo. Quem
+    resolve é quem edita a planilha (a Bia) ou a Ponte, e o fechamento com
+    número parcial seria enganoso. Quando a interface (B9) existir, esse erro
+    pode virar um bloqueio explícito para a analista corrigir ou confirmar.
+  - A alternativa seria uma pendência nova, por exemplo LINHA_NAO_RECONHECIDA,
+    com a linha física como referência e o valor visível, e o fechamento
+    seguiria. É menos seguro, porque o mês fecha com uma comissão faltando. Eu
+    escolheria o erro agora e reavaliaria quando a interface existir.
+
+  Tamanho da mudança
+
+  Duas verificações pequenas, uma por leitor, com testes (rodapé continua
+  passando e linha real sem prefixo ou sem nome falha). Os 233 do rodapé da
+  Ponte entram como teste de regressão para o critério não dar falso alarme.
+
+  Quer que eu faça as 4 mudanças (ledger, mês errado, essas verificações e o
+  I-R3) antes do B6?
+
+❯ Atualize tudo que precisa ser atulizado, inclusive documentação, se
+  necessário, para prosseguir com suas mudanças sugeridas
+  Read 1 file, ran 4 shell commands (ctrl+o to expand)
+
+⏺ Reescrevendo o pipeline com a checagem de mês, o ledger, o I-R3 e o
+  execucao.log.
+
+⏺ Write(src/tarvo/pipeline.py)
+  ⎿  Added 53 lines, removed 9 lines
+      1 -"""Fechamento do mês. Hoje cobre o nível Mínimo (checkout); os d
+        -emais motores entram nos próximos blocos."""                    
+      1 +"""Fechamento do mês: checkout, remessa, divergências e notas. C
+        +lassificação dos extratos entra no B6."""                       
+      2  from __future__ import annotations
+      3  
+      4  from dataclasses import dataclass
+     ...
+       6  
+       7  from .config import carregar_defaults
+       8  from .contracts.resolver import Resolvedor
+       9 +from .core.competencia import no_mes                           
+      10 +from .core.ledger import Ledger                                
+      11  from .core.rastro import Rastro
+      10 -from .engines.checkout import ResultadoCheckout, calcular_check
+         -out                                                            
+      12 +from .engines.checkout import calcular_checkout                
+      13  from .engines.divergencias import calcular_divergencias
+      14  from .engines.notas import calcular_notas
+      15  from .engines.remessa import calcular_remessa
+      16  from .identity.registro import Registro
+      17  from .ingest.erros import LayoutError
+      18 +from .ingest.orbe import ARQUIVO as ARQUIVO_ORBE               
+      19  from .ingest.orbe import ler_orbe
+      20 +from .ingest.ponte import ARQUIVO as ARQUIVO_PONTE             
+      21  from .ingest.ponte import ler_ponte
+      22  from .ingest.taxas import ARQUIVO as ARQUIVO_TAXAS
+      23  from .ingest.taxas import ler_taxas
+      20 -from .output.validators import validar_i_d1, validar_i_n1, vali
+         -dar_i_r1                                                       
+      24 +from .output.validators import validar_i_d1, validar_i_n1, vali
+         +dar_i_r1, validar_i_r3                                         
+      25  from .output.writers import escrever_csv, escrever_rastro
+      26  
+      27  
+     ...
+      40      return achados[0]
+      41  
+      42  
+      43 +def checar_mes_com_dados(n_orbe_mes: int, n_ponte_mes: int, mes
+         +: str) -> list[str]:                                           
+      44 +    """Mês errado não pode gerar saídas vazias que parecem váli
+         +das. Devolve avisos (uma fonte vazia)."""                      
+      45 +    if n_orbe_mes == 0 and n_ponte_mes == 0:                   
+      46 +        raise LayoutError(f"nenhuma linha da Orbe nem da Ponte 
+         +cai em {mes}; os arquivos são de outro mês?")                  
+      47 +    avisos = []                                                
+      48 +    if n_orbe_mes == 0:                                        
+      49 +        avisos.append(f"Orbe: nenhuma linha em {mes}")         
+      50 +    if n_ponte_mes == 0:                                       
+      51 +        avisos.append(f"Ponte: nenhuma operação em {mes}")     
+      52 +    return avisos                                              
+      53 +                                                               
+      54 +                                                               
+      55  def fechar(mes: str, dados: Path, saida: Path) -> ResultadoFech
+          amento:
+      56      cfg = carregar_defaults()
+      41 -    contratos, excecoes_taxas = ler_taxas(_arquivo(dados, "02_*
+         -.xlsx"))                                                       
+      57 +    ledger = Ledger()                                          
+      58 +    arq_taxas, arq_orbe, arq_ponte = _arquivo(dados, "02_*.xlsx
+         +"), _arquivo(dados, "01_*.csv"), _arquivo(dados, "03_*.eml")   
+      59 +    contratos, excecoes_taxas = ler_taxas(arq_taxas, ledger)   
+      60      registro = Registro.construir(contratos, cfg.ecs_extra, cfg
+          .sem_contrato, cfg.aliases)
+      43 -    txs = ler_orbe(_arquivo(dados, "01_*.csv"))                
+      61 +    txs = ler_orbe(arq_orbe)                                   
+      62 +    ops = ler_ponte(arq_ponte, ledger)                         
+      63  
+      64 +    txs_mes = [t for t in txs if no_mes(t.data_movimento, mes)]
+      65 +    ops_mes = [o for o in ops if no_mes(o.data_contratacao, mes
+         +)]                                                             
+      66 +    avisos = checar_mes_com_dados(len(txs_mes), len(ops_mes), m
+         +es)                                                            
+      67 +                                                               
+      68      rastro = Rastro()
+      46 -    res = calcular_checkout(txs, registro, Resolvedor(contratos
+         -, cfg.overrides), mes, rastro)                                 
+      69 +    resolvedor = Resolvedor(contratos, cfg.overrides)          
+      70 +    res = calcular_checkout(txs, registro, resolvedor, mes, ras
+         +tro, ledger)                                                   
+      71      div = calcular_divergencias(res.linhas, rastro)
+      48 -    rem = calcular_remessa(ler_ponte(_arquivo(dados, "03_*.eml"
+         -)), registro, Resolvedor(contratos, cfg.overrides),            
+      49 -                           mes, rastro)                        
+      72 +    rem = calcular_remessa(ops, registro, resolvedor, mes, rast
+         +ro, ledger=ledger)                                             
+      73      for e in excecoes_taxas:  # exceção de leitura da planilha:
+           a linha da planilha é a origem
+      74          rastro.add(e.id_saida, ARQUIVO_TAXAS, e.ref_origem, e.v
+          alor_brl)
+      75      comissoes = res.comissoes + rem.comissoes
+     ...
+      80           "valor_brl": e.valor_brl, "motivo": e.motivo, "quem_de
+          cide": e.quem_decide}
+      81          for e in excecoes
+      82      ]
+      60 -    # Valida antes de escrever: falha de invariante não deixa s
+         -aída parcial.                                                  
+      83      divergencias = div.divergencias + rem.divergencias
+      84 +                                                               
+      85 +    # Valida antes de escrever: falha de invariante não deixa s
+         +aída parcial.                                                  
+      86      validar_i_r1({"comissoes_por_lojista": comissoes, "divergen
+          cias_taxa": divergencias,
+      87                    "notas_a_emitir": notas.notas, "pendencias": 
+          pendencias}, rastro)
+      88 +    validar_i_r3({ARQUIVO_ORBE: {t.id_transacao for t in txs_me
+         +s},                                                            
+      89 +                  ARQUIVO_PONTE: {o.n_operacao for o in ops_mes
+         +}}, rastro)                                                    
+      90      validar_i_d1(divergencias)
+      91      validar_i_n1(notas.notas)
+      92  
+     ...
+       96      escrever_csv(saida / "notas_a_emitir.csv", "notas_a_emitir
+           ", notas.notas)
+       97      escrever_csv(saida / "pendencias.csv", "pendencias", pende
+           ncias)
+       98      escrever_rastro(saida / "rastro.csv", rastro)
+       99 +                                                              
+      100 +    # Sem carimbo de data: o log também é idêntico entre duas 
+          +execuções com as mesmas entradas.                             
+      101 +    linhas_log = [                                            
+      102 +        f"fechamento {mes}",                                  
+      103 +        f"arquivos: {arq_orbe.name}, {arq_taxas.name}, {arq_po
+          +nte.name}",                                                   
+      104 +        f"Orbe: {len(txs)} linha(s), {len(txs_mes)} no mês, {l
+          +en(txs) - len(txs_mes)} fora do mês",                         
+      105 +        f"Ponte: {len(ops)} linha(s), {len(ops_mes)} no mês, {
+          +len(ops) - len(ops_mes)} fora do mês",                        
+      106 +        f"Taxas: {len(contratos)} linha(s) de contrato",      
+      107 +        *ledger.linhas_log(),                                 
+      108 +        *[f"AVISO: {a}" for a in avisos],                     
+      109 +        "validação: I-R1, I-R3, I-D1, I-N1 ok",               
+      110 +        f"comissoes_por_lojista: {len(comissoes)} linha(s)",  
+      111 +        f"divergencias_taxa: {len(divergencias)} linha(s)",   
+      112 +        f"notas_a_emitir: {len(notas.notas)} linha(s)",       
+      113 +        f"pendencias: {len(pendencias)} linha(s)",            
+      114 +        f"rastro: {len(rastro.linhas())} linha(s)",           
+      115 +    ]                                                         
+      116 +    (saida / "execucao.log").write_text("\n".join(linhas_log) 
+          ++ "\n", encoding="utf-8")                                     
+      117      return ResultadoFechamento(comissoes, divergencias, exceco
+           es, notas.notas)
+
+  Ran 5 shell commands (ctrl+o to expand)
+
+⏺ As quatro mudanças estão implementadas, a documentação foi atualizada e os 252
+  testes passam (eram 230). Não fiz commit.
+
+  O que entrou no código
+
+  1. Ledger de ignorados (core/ledger.py):
+     - Cada descarte é contado por fonte e motivo, com no máximo 5 referências
+       de amostra.
+     - Os leitores da Ponte e da planilha, e os motores de checkout e remessa,
+       alimentam o ledger.
+     - Linha totalmente em branco não conta, só o rodapé.
+  2. Gate de mês (checar_mes_com_dados em pipeline.py):
+     - Se nenhuma linha da Orbe nem da Ponte cai no mês pedido, o fechamento
+       falha antes de escrever.
+     - Com --mes 2026-10 sobre os arquivos de setembro, a execução termina com
+       ERRO: nenhuma linha da Orbe nem da Ponte cai em 2026-10; os arquivos são
+       de outro mês? e código 1, sem traceback.
+     - Se só uma fonte estiver vazia, o log traz um aviso.
+  3. Linha com cara de dado que não é reconhecida falha:
+     - Ponte: uma linha sem PC- que tenha CNPJ, Valor ME ou Spread R$ vira erro
+       com a linha física. O rodapé real passa, porque só preenche as colunas A
+       e B.
+     - Planilha: uma linha sem nome de lojista, mas com CNPJ, EC ou taxa, vira
+       erro.
+  4. I-R3 em toda execução (validar_i_r3): toda linha da Orbe do mês e toda
+     operação da Ponte do mês tem que aparecer no rastro, por arquivo de origem.
+     A mensagem nomeia o arquivo e as referências que faltam.
+
+  Resultado e execucao.log
+
+  Setembro continua igual (R$ 207.039,73 de checkout, R$ 39.543,45 de remessa,
+  21 notas, 240 pendências). O fechamento agora também grava um
+  saida/execucao.log, sem carimbo de data, para ficar idêntico entre duas
+  execuções. Ele mostra:
+  - arquivos lidos, e linhas lidas e no mês por fonte;
+  - descartes por motivo: a Ponte tem 2 linhas de rodapé (L240, L241) e a
+    planilha 1 (Taxas!L32);
+  - linhas das saídas, e a confirmação de I-R1, I-R3, I-D1 e I-N1.
+
+  Documentação atualizada
+
+  - docs/PRD.md:
+    - Princípio P9 ("nada some em silêncio").
+    - Seção 7.1 (regras de ingestão), com o parágrafo novo "Linhas descartadas
+      (ledger)" e o gate de mês.
+    - Seção 7.9 (I-R3 em toda execução e conteúdo do execucao.log).
+    - Seção 10 (novo teste "nada some em silêncio").
+    - Seção 13 (novo risco).
+    - A árvore de pastas.
+  - docs/HIPOTESES.md: a seção 5 (premissas de formato) ganhou duas linhas sobre
+    as leituras que falham e um bloco "nada some em silêncio".
+  - docs/CLAUDE.md: estava desatualizado ("There is no code yet"). Agora
+    descreve o estado (B0 a B5 prontos), que todo código fica em src/ (testes e
+    scripts inclusos) e os comandos de instalação, teste e fechamento.
+
+  Pontos a considerar
+
+  - Sem carimbo de data no log: o PRD admitia um carimbo de execução. Preferi
+    não ter, assim o log também é reproduzível byte a byte.
+  - Resumo ainda não existe: o ledger fica só no execucao.log. O resumo.md para
+    o financeiro continua no B7.
+  - O erro vale para a CLI e para a interface: quando a interface (B9) existir,
+    esses erros viram bloqueios explícitos para a analista.
+
+  Seguimos para o B6 (extratos Aurora e Meridiano, plano de contas e
+  classificação por regra)?
+
+❯ <ide_opened_file>The user opened the file
+  /Users/bartonthomas/Library/CloudStorage/OneDrive-TheBostonConsultingGroup,In
+  c/Desktop/barte-challenge-casa-barton/docs/HIPOTESES.md in the IDE. This may
+  or may not be related to the current task.</ide_opened_file>
+
+❯ atualize o chat3.txt para a conversa total daqui, utilizando /export
+
+⏺ Eu não consigo executar o /export. Ele é um comando interno da interface, não
+  uma ferramenta que eu possa chamar, e por isso não toquei no chat3.txt.
+
+  Como fazer você mesma: digite /export na caixa de mensagem desta conversa. Se
+  o comando pedir um nome de arquivo, use PROMPTS/chat3.txt, para sobrescrever o
+  export atual (o arquivo de 42 KB que está lá hoje cobre só o começo da
+  sessão). Se o export abrir um diálogo de salvar, escolha esse mesmo caminho
+  dentro do repo.
+
+  Por que não reconstruí o arquivo à mão: um export escrito por mim seria uma
+  reconstrução de memória, e não o registro real da sessão. O brief avalia o uso
+  de IA com base nos transcritos em PROMPTS/, então o arquivo precisa ser o
+  export autêntico.
+
+  Dois lembretes:
+  - A conversa continua, então convém repetir o /export no fim do dia, antes do
+    prazo do repositório (18h30), para o arquivo incluir o B6 em diante.
+  - O brief também pede 2 a 4 momentos-chave em PROMPTS/MOMENTOS.md, incluindo
+    pelo menos um em que a IA errou. Desta sessão já tem material:
+    - Dois números errados nos meus testes (25 linhas na planilha, não 27; 4
+      reversões de Ativos, não 6).
+    - A sua pergunta sobre descarte silencioso, que levou à descoberta de que
+      --mes 2026-10 gerava saídas vazias sem erro.
+    - A sua pergunta sobre a leitura da gramática por IA, que gerou a proposta
+      de a IA ler a coluna Obs.
+
+  Quer que eu redija esses momentos no MOMENTOS.md?

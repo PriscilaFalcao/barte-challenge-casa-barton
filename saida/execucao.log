@@ -1,0 +1,13 @@
+fechamento 2026-09
+arquivos: 01_orbe_relatorio_comissoes_set2026.csv, 02_tabela_taxas_contratadas.xlsx, 03_email_ponte_cambio_relatorio_set2026.eml
+Orbe: 1943 linha(s), 1943 no mês, 0 fora do mês
+Ponte: 233 linha(s), 233 no mês, 0 fora do mês
+Taxas: 25 linha(s) de contrato
+Ponte: 2 linha(s) ignorada(s) (rodapé ou linha sem dado); ex.: L240, L241
+Taxas: 1 linha(s) ignorada(s) (rodapé ou linha sem dado); ex.: Taxas!L32
+validação: I-R1, I-R3, I-D1, I-N1 ok
+comissoes_por_lojista: 35 linha(s)
+divergencias_taxa: 237 linha(s)
+notas_a_emitir: 21 linha(s)
+pendencias: 240 linha(s)
+rastro: 4642 linha(s)

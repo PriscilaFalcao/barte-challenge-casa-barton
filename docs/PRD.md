@@ -55,7 +55,7 @@ Versão 2 (inclui interface web, seção 15) · 17/10/2026 · Base: `HIPOTESES.m
 | P6 | **Decimal exato, sem tolerância.** | `decimal.Decimal` em todo cálculo, `ROUND_HALF_UP` simétrico. Nada de `float`. Ver MOMENTOS 1: a tolerância de R$ 0,011 escondeu a truncagem da Orbe. |
 | P7 | **Regra é configuração, não código, e quem a edita é o usuário de negócio pela interface.** | Tolerâncias, mapa de contas, overrides de taxa, aliases e responsáveis vivem como dados versionados no banco de estado, editados na tela Configurações (15.7). Os arquivos `config/*.yaml` existem só como defaults de fábrica e como modelo de dados. |
 | P8 | **Reexecutável e idempotente.** | Mesma entrada + mesmas decisões = mesma saída. Respostas de agentes são cacheadas por hash da entrada. |
-| P9 | **Falha visível.** | Arquivo com layout inesperado derruba a execução com mensagem clara. Nunca segue em silêncio com dado errado. |
+| P9 | **Falha visível.** | Arquivo com layout inesperado derruba a execução com mensagem clara. Nunca segue em silêncio com dado errado. **Nada some em silêncio:** só se descarta estrutura do arquivo (rodapé, aba ignorada, linha em branco, linha fora do mês), e tudo o que é descartado é contado em `execucao.log`. Linha que parece dado e não é reconhecida derruba a execução. |
 | P10 | **Nenhum usuário de negócio toca em arquivo técnico.** | Sem YAML, sem CSV de configuração, sem terminal. Upload, validação, regras e download são telas. |
 | P11 | **A interface mostra, não decide.** | A interface não calcula e não altera número. Ela envia arquivos e decisões à API e exibe o que o motor e os agentes fizeram, etapa por etapa. |
 | P12 | **Toda mudança de regra é auditável.** | Cada alteração guarda autor, data, motivo, valor anterior, vigência e versão, e pode ser simulada antes de salvar e revertida depois. |
@@ -145,7 +145,7 @@ config/
 data/                      tarvo.db, uploads/, execucoes/<id>/ (checkpoints por etapa); fora do git
 src/tarvo/
   ingest/    orbe.py taxas.py ponte.py plano_contas.py aurora.py meridiano.py
-  core/      money.py ids.py rastro.py excecoes.py
+  core/      money.py ids.py rastro.py excecoes.py competencia.py ledger.py
   identity/  registro.py
   contracts/ resolver.py
   engines/   checkout.py remessa.py divergencias.py notas.py bancos.py
@@ -232,12 +232,14 @@ Cada estágio é um módulo com entrada e saída tipadas. Cada um devolve `(resu
 |---|---|---|---|
 | Orbe CSV | UTF-8/ASCII, `;`, CRLF, datas pt-BR, vírgula decimal | `id_referencia` e `data_venda_original` só em estorno/reversão | colunas obrigatórias ausentes |
 | Taxas XLSX | cabeçalho achado pelo texto "Lojista"/"CNPJ"/"EC Orbe", não pela linha 5; cabeçalho de dois níveis (MDR por modalidade, depois Antecipação, Spread, Vigência, Obs) | aba cujo nome contém "ANTIGO" ou "nao usar" ignorada; CNPJ em 3 formatos; taxa como texto (`'1,49%'`); vigência em texto livre | nenhuma coluna de taxa reconhecida |
-| Ponte EML | extrai o anexo base64 e lê a aba `Operações`; cabeçalho achado pela célula "Nº Operação" | linha é operação se o ID começa com `PC-`; rodapé e aba `Resumo` **não** são fonte; dedup por `Nº Operação` | mais de um anexo XLSX, ou nenhum |
+| Ponte EML | extrai o anexo base64 e lê a aba `Operações`; cabeçalho achado pela célula "Nº Operação" | linha é operação se o ID começa com `PC-`; rodapé e aba `Resumo` **não** são fonte; dedup por `Nº Operação`. Linha sem `PC-` que tenha CNPJ, Valor ME ou Spread R$ **não** é rodapé: falha com a linha física | mais de um anexo XLSX, ou nenhum |
 | Plano de contas | Latin-1, CRLF | só `ACEITA_LANCTO=S` é destino válido | — |
 | Aurora CSV | UTF-8, `;`; cabeçalho de colunas no meio do arquivo; `ref_origem` = linha física (`L9`…); descarta `SALDO ANTERIOR`, `SALDO FINAL` e aviso; **verifica a cadeia de saldos** linha a linha | valores `66.026,00` | cadeia de saldos não fecha |
 | Meridiano OFX | CP1252, SGML sem tags de fechamento; `<STMTTRN>` com TRNTYPE, DTPOSTED, TRNAMT, FITID, MEMO | acentos inconsistentes ("AÉREA"/"AEREA") | FITID duplicado ou ausente |
 
 **Mês de referência.** Parâmetro `--mes 2026-09`. Competência da checkout = data do movimento (estorno abate no mês do estorno, ✅ C3). Competência da remessa = data de contratação (✅ R8).
+
+**Linhas descartadas (ledger).** O código só descarta o que é estrutura do arquivo. Cada descarte é contado por fonte e motivo (`fora do mês`, `rodapé ou linha sem dado`), com amostra de referências, e aparece em `saida/execucao.log`. Linha totalmente em branco não conta. Planilha de taxas: linha sem nome de lojista mas com CNPJ, EC ou taxa falha (não é rodapé). **Gate de mês:** se nenhuma linha da Orbe nem da Ponte cai no mês pedido, a execução falha ("os arquivos são de outro mês?"), em vez de escrever saídas vazias. Se só uma das fontes estiver vazia, o log traz um aviso.
 
 ### 7.2 Resolvedor de taxa vigente (camada 2)
 
@@ -345,14 +347,14 @@ Antes de escrever qualquer arquivo, o validador roda e **aborta com erro** (não
 |---|---|
 | I-R1 | `sum(rastro.valor)` por `id_saida` = número reportado em cada uma das 5 outras saídas, em `Decimal` exato |
 | I-R2 | todo `ref_origem` do rastro existe na tabela canônica da sua fonte |
-| I-R3 | toda linha da Orbe do mês e toda operação da Ponte aceita aparece em pelo menos uma linha de rastro, ou numa exceção explicada |
+| I-R3 | toda linha da Orbe do mês e toda operação da Ponte aceita aparece em pelo menos uma linha de rastro (de comissão, divergência ou pendência). Verificado em toda execução, por arquivo de origem |
 | I-C1 | nenhuma conta de `lancamentos_classificados` é analítica = N |
 | I-C2 | CNPJ com 14 dígitos; `linha_negocio`, `banco`, `metodo` dentro dos enums; `confianca` ∈ [0,1] |
 | I-N1 | nenhuma nota com `valor_brl` ≤ 0 |
 | I-B1 | cadeia de saldos da Aurora fecha |
 | I-D1 | nenhuma divergência de checkout com `taxa_aplicada == taxa_contratada` |
 
-Também escreve `saida/resumo.md` (legível para o financeiro: totais por linha, dinheiro em jogo, lista de pendências) e `saida/execucao.log`.
+Também escreve `saida/resumo.md` (legível para o financeiro: totais por linha, dinheiro em jogo, lista de pendências) e `saida/execucao.log` (arquivos lidos, linhas por fonte e no mês, linhas descartadas por motivo, avisos, validações e contagem de cada saída; sem carimbo de data, para ser idêntico entre execuções).
 
 ---
 
@@ -504,6 +506,7 @@ Os números abaixo já foram conferidos à mão contra os dados (`HIPOTESES.md`,
 | Upload | cada um dos 6 arquivos do data pack é aceito no seu formato (15.3); arquivo no campo errado, extensão inesperada e coluna ausente geram mensagem clara, sem rodar |
 | Configurações | alterar uma regra gera nova versão com autor, motivo e valor anterior; a simulação não grava nada; reverter restaura o resultado anterior |
 | Download | os arquivos baixados são byte a byte iguais aos de `saida/` |
+| Nada some em silêncio | mês sem dados falha; linha da Ponte sem `PC-` mas com CNPJ ou Spread R$ falha; linha da planilha sem nome mas com CNPJ ou taxa falha; rodapé real (2 linhas na Ponte, 1 na planilha) é contado no log; I-R3 vale em toda execução |
 
 Os números marcados "≈" só viram teste exato depois que o motor existe e o valor é fixado por inspeção manual das linhas de rastro.
 
@@ -575,6 +578,7 @@ Prioridade: **A** = muda número de saída avaliada; **B** = muda classificaçã
 | Dependência de chave de API durante o pitch | Demo falha | Modo sem IA (8.3) gera as 6 saídas completas. |
 | Tempo: construir o Extra e perder o Mínimo | Pior nota possível | Plano da seção 11: B2 primeiro, B9 cortado primeiro. |
 | Ordem das linhas ou duplicatas de linha na Orbe | Soma errada | Propriedade de teste (seção 10) e chave única por `id_transacao`. |
+| Mês errado ou linha descartada em silêncio | Saídas vazias que parecem válidas, ou comissão que some | Gate de mês, ledger no `execucao.log`, leitores que falham em linha com cara de dado e I-R3 em toda execução (7.1 e 7.9). |
 | **A interface consome o dia e o mínimo não fecha** | Pior nota possível: "mockup não conta" e o número correto vale 25% | B9 só começa com o B2 verde. A CLI gera `saida/` com o mesmo motor, então a entrega para correção independe da interface. Cortar B10 e B11 antes de cortar B9. |
 | Interface e CLI divergem | Número diferente do mostrado ao financeiro | Uma só implementação do motor, chamada pelos dois. Teste de paridade (seção 10). |
 | Usuário edita regra e quebra um fechamento | Número errado sem rastro de quem mudou | Simulação de impacto antes de salvar, motivo obrigatório, versionamento, reversão e parâmetros ✅ travados para o papel Analista (15.7). |

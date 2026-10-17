@@ -154,3 +154,17 @@ def test_calculation_lines_expose_detail_for_divergences():
     res, _ = _rodar([_tx("TX1", bruto="1000.00", aplicada="1.20")])
     (l,) = res.linhas
     assert (l.tx.id_transacao, l.cnpj14, l.produto, l.taxa.pct, l.comissao) == ("TX1", CNPJ, "DEBITO", D("1.00"), D("10.00"))
+
+
+def test_out_of_month_lines_are_counted_in_the_ledger():
+    from tarvo.core.ledger import Ledger
+    from tarvo.engines.checkout import calcular_checkout
+    from tarvo.contracts.resolver import Resolvedor
+    from tarvo.core.rastro import Rastro
+    from tarvo.identity.registro import Registro
+
+    contratos = [_contrato()]
+    ledger = Ledger()
+    calcular_checkout([_tx("TX1", dia=date(2026, 8, 31)), _tx("TX2", dia=date(2026, 10, 1)), _tx("TX3")],
+                      Registro.construir(contratos, {}, {}), Resolvedor(contratos), "2026-09", Rastro(), ledger)
+    assert ledger.contar("Orbe", "fora do mês") == 2
