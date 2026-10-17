@@ -156,8 +156,9 @@ src/tarvo/
   api/       app.py rotas_fechamentos.py rotas_config.py sse.py
   web/       templates/ static/        interface (seção 15)
   cli.py                       python -m tarvo fechar --mes 2026-09   (modo sem interface, mesmo motor)
-tests/
+src/tests/                     todo código, inclusive testes e scripts, fica em src/
   fixtures/  golden/           totais conferidos (seção 10)
+src/scripts/                   utilitários de inspeção manual
 cache/agentes/                 respostas de agentes por hash (versionadas)
 ```
 
@@ -542,7 +543,7 @@ Prioridade: **A** = muda número de saída avaliada; **B** = muda classificaçã
 | **V2** | PIX de R$ 112.220,15 à Atlas em 10/09 (Aurora L34), com R$ 1.247,52 de vendas líquidas até o dia. Foi intencional? Quem autorizou? | B | 2.1.01.001 + pendência de risco | trocar conta | Helena |
 | **V3** | Casa do Estudante: (a) estorno TX88445133, de venda de 21/08, abate 1,49% e deixa comissão negativa: confirma "sem nota + pendência"? (b) estornos de vendas de setembro (taxa 0) reduzem o valor a devolver? (c) Casa aparece em `comissoes_por_lojista` com valor negativo ou zero? | **A** | negativa em comissões, sem nota, pendência | `flag` em `regras.yaml` | Helena |
 | **V4** | Spread negativo entra também em `divergencias_taxa.csv` (contrato × realizado, Σ R$ 3.565,98) ou só em pendência de contestação? | **A** | entra nas duas | `spread_negativo_em_divergencias: false` | Helena |
-| **V5** | Atlas: aparece em `comissoes_por_lojista` (com 0) e em divergências, ou fica totalmente fora? Qual a taxa que vale? | **A** | totalmente fora; só pendência | liberar quando comercial confirmar a taxa | Diego (comercial) |
+| **V5** | Atlas: aparece em `comissoes_por_lojista` (com 0) e em divergências, ou fica totalmente fora? Qual a taxa que vale? Sub-ponto: o `valor_brl` da pendência `SEM_CONTRATO` hoje é a soma da taxa cobrada pela Orbe nas 57 linhas (R$ 7.876,05), só para dimensionar, sem ser valor a faturar. Prefere outro critério? | **A** | totalmente fora; só pendência, com valor = taxa cobrada pela Orbe | liberar quando comercial confirmar a taxa | Diego (comercial) |
 | **V6** | `quem_decide` por tipo de pendência (tabela 7.8): Helena versus Diego versus Bia (dona da planilha)? | B | tabela 7.8 | editar `regras.yaml` | Helena |
 | **V7** | Contas ⚠️ do plano de contas: TED Orbe, PIX lojistas (Aurora e Meridiano), TED Ponte, CDB e rendimento, IOF s/ crédito no Meridiano, tarifa de câmbio, seguro | **A** | tabela 2.5 do `HIPOTESES.md` | editar `plano_contas_regras.yaml` | Helena |
 | **V8** | Excesso da Mundo Aberto: usar `Spread %` aplicado (R$ 1.418,85) ou `Spread R$` − 1,2% × ME × PTAX (R$ 1.418,88)? | **A** | R$ 1.418,85 | `formula_divergencia_remessa` | Helena |

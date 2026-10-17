@@ -1,9 +1,9 @@
 """Inspeção manual do B1 (ingestão, registro de lojistas e resolvedor de taxa).
 
 Uso (da raiz do repo):
-  .venv/bin/python scripts/inspecionar_b1.py                       # resumo geral
-  .venv/bin/python scripts/inspecionar_b1.py --ec 1075624862 --produto CREDITO_1X --data 2026-09-15
-  .venv/bin/python scripts/inspecionar_b1.py --dados outra_pasta/  # outros arquivos, mesmo formato
+  .venv/bin/python src/scripts/inspecionar_b1.py                       # resumo geral
+  .venv/bin/python src/scripts/inspecionar_b1.py --ec 1075624862 --produto CREDITO_1X --data 2026-09-15
+  .venv/bin/python src/scripts/inspecionar_b1.py --dados outra_pasta/  # outros arquivos, mesmo formato
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from tarvo.config import carregar_defaults  # noqa: E402
 from tarvo.contracts.resolver import ContratoError, Resolvedor, produto_de  # noqa: E402

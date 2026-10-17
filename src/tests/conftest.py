@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-DADOS = Path(__file__).resolve().parent.parent / "dados"
+DADOS = Path(__file__).resolve().parents[2] / "dados"
 
 
 @pytest.fixture(scope="session")
