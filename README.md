@@ -22,6 +22,8 @@ A interface aceita os seis arquivos originais do fechamento: Orbe (`.csv`), taxa
 
 Para habilitar os agentes, copie `.env.example` para `.env` na raiz do repositório e configure a credencial localmente. Sem credencial, o fluxo funciona em modo sem IA e mantém exceções na fila humana. Não é necessário criar `.env` para iniciar a interface.
 
+A navegação destaca em rosa a seção selecionada. Use **Novo fechamento** para iniciar o fluxo. Durante a conferência e a execução, um indicador visual informa que o processamento está em andamento; a criação de outro fechamento e o envio de arquivos ficam bloqueados até a conclusão. Nas saídas, o botão **Baixar todas as saídas** usa um ícone de download para identificar o arquivo ZIP.
+
 ## Executar pelo terminal
 
 ```powershell

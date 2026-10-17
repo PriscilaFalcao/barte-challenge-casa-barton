@@ -47,6 +47,16 @@ const notice = document.querySelector("#notice");
 const dialog = document.querySelector("#month-dialog");
 const drawer = document.querySelector("#detail-drawer");
 
+function setProcessing(message) {
+  const busy = Boolean(message);
+  document.querySelector("#processing-message").textContent = message || "";
+  document.querySelector("#processing-status").hidden = !busy;
+  closureView.setAttribute("aria-busy", String(busy));
+  document.querySelectorAll("#new-closure, [data-create], .file-card input").forEach(element => {
+    element.disabled = busy;
+  });
+}
+
 function showNotice(message, isError = true) {
   notice.textContent = message;
   notice.classList.toggle("notice-success", !isError);
@@ -829,6 +839,7 @@ document.querySelector("#validate-files").addEventListener("click", async event 
   const button = event.currentTarget;
   button.disabled = true;
   button.textContent = "Conferindo arquivos…";
+  setProcessing("Conferindo os arquivos do fechamento…");
   setWorkflow("review");
   try {
     const result = await request(`/api/closures/${state.closureId}/validate`, { method: "POST" });
@@ -841,6 +852,7 @@ document.querySelector("#validate-files").addEventListener("click", async event 
     showNotice(error.message);
     setWorkflow("files");
   } finally {
+    setProcessing(null);
     button.innerHTML = 'Conferir arquivos <span aria-hidden="true">→</span>';
     button.disabled = false;
     updateFileStatus();
@@ -890,9 +902,16 @@ document.querySelectorAll(".tab").forEach(tab => tab.addEventListener("click", (
 document.querySelector("#table-search").addEventListener("input", renderTable);
 document.querySelector("#close-drawer").addEventListener("click", closeDrawer);
 document.querySelector("#drawer-backdrop").addEventListener("click", closeDrawer);
-document.querySelectorAll("[data-notice]").forEach(link => link.addEventListener("click", event => {
+document.querySelectorAll(".main-nav .nav-link").forEach(link => link.addEventListener("click", event => {
   event.preventDefault();
-  showNotice(link.dataset.notice, false);
+  document.querySelectorAll(".main-nav .nav-link").forEach(item => {
+    const active = item === link;
+    item.classList.toggle("active", active);
+    if (active) item.setAttribute("aria-current", "page");
+    else item.removeAttribute("aria-current");
+  });
+  if (link.dataset.notice) showNotice(link.dataset.notice, false);
+  else notice.hidden = true;
 }));
 document.querySelectorAll("[data-section]").forEach(link => link.addEventListener("click", event => {
   event.preventDefault();

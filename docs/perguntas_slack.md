@@ -594,3 +594,53 @@ Basta a pendência com o total e o detalhe por transação. Se quiserem pôr as 
 Fica fora do fechamento de vocês. A provisão de setembro quem faz é a contabilidade, comigo, com a folha e as guias, e isso não está no pacote. O fechamento de vocês classifica o que passou nos extratos.
 Esse critério é de vocês. O alerta é para mim e para o comercial e não muda nenhum número. Registrem a escolha no HIPOTESES.md.
 — Helena
+
+
+Turma do Barulho - Marcus Valente  [12h27]
+[financeiro] Turma do Barulho: para entender como o fechamento muda de um mês para outro, em outubro podemos receber arquivos com colunas, abas ou formatos diferentes, novas fontes, arquivos ausentes ou correções de arquivos já enviados? Ou a estrutura permanece igual e mudam apenas os registros, lojistas e condições comerciais?
+Quando faltar uma fonte ou chegar uma informação nova sem regra definida, vocês esperam que o fechamento inteiro aguarde ou que as partes independentes sejam concluídas, deixando explícitos os resultados provisórios, os bloqueios e as pendências? Quem decide quando esses casos podem ser liberados?1 respostamanuel.freitas  [12h31]
+[Financeiro] Resposta para Turma do Barulho
+A estrutura é a mesma todo mês: mesmas fontes, mesmas colunas. Mudam os registros, os lojistas e as condições. Mas na prática acontece de arquivo chegar atrasado, de a Orbe mandar ajuste depois do relatório, e já teve parceiro mudando o layout sem avisar. Prefiro que a solução avise a que quebre sem ninguém perceber.
+Quando falta alguma coisa, eu não seguro o mês inteiro. Fecha o que não depende daquilo, marca o que é provisório e deixa claro o que está bloqueado e por quê. Quem libera sou eu. Se for taxa ou cadastro, o comercial decide antes.
+— Helena
+
+Alex Chequer  [12h36]
+[financeiro] Fox AI: alerta de antecipação (Atlas). Em 15/09 ela tinha R$ 179.592,82 antecipados contra R$ 55.357,50 vendidos desde que começou (10/09). Depois, duas antecipações foram revertidas (17/09 e 26/09), e no fim do mês o antecipado líquido (R$ 127.230,96) fica abaixo das vendas (R$ 135.428,90). Propomos alertar pelo pico (o risco existiu quando o dinheiro foi adiantado) e citar as reversões no alerta. Confere, ou o alerta considera só o saldo do fim do mês?
+1 respostamanuel.freitas  [12h50]
+[Financeiro] Resposta para Fox AI
+O critério do alerta é de vocês, como já está no canal. A proposta é razoável: registrem no HIPOTESES.md e sigam.
+— Helena
+
+Lucca Landeiro - Lucca Landeiro  [12h44]
+[Financeiro] Lucca Landeiro: na devolução ao lojista, usamos o que a Orbe descontou de fato (valor_taxa) menos a comissão contratada, porque o lojista recebeu o líquido (Q-U 4). Na Casa isso dá R$ 15.396,77, contra R$ 15.397,42 pela fórmula da divergência (bruto × diferença de taxa), que mantivemos em divergencias_taxa.csv como a senhora definiu. A diferença é o truncamento da Orbe. A devolução segue esse valor cobrado de fato?
+1 respostamanuel.freitas  [12h50]
+[Financeiro] Resposta para Lucca Landeiro
+Devolvo o que saiu do bolso do lojista, o que foi descontado de fato. A diferença para a fórmula é centavo: segue como você fez.
+— Helena
+
+dogshow - Rodrigo Camargo  [13h18]
+[Financeiro] Dogshow: após deduplicar o relatório da Ponte por número de operação, identificamos R$ 470.489,03 em PIX da Ponte Aérea Estudantil (CNPJ 95.739.378/0001-18) no Meridiano, contra R$ 452.249,03 de principal + IOF das operações de setembro.
+
+A diferença é R$ 18.240,00, mesmo valor do PIX de 17/09, referência MRD2026090425. Esse valor é saldo para uma remessa futura, corresponde a uma operação ausente no relatório ou deve ser devolvido? Até esclarecer, manteremos no passivo de recursos para remessas, sem reconhecer receita nem alterar a comissão.
+1 respostamanuel.freitas  [13h34]
+[Financeiro] Resposta para dogshow
+Já está no canal, nas respostas ao Mateus e aos Desbravadores. É a Ponte Aérea mandando dinheiro de uma remessa que sai em outubro. Fica em recursos para remessas, como vocês fizeram.
+— Helena
+
+David Deodato  [13h19]
+[Financeiro] 
+A isenção da Casa do Estudante inclui antecipação de setembro a dezembro. Para essa tarifa, a isenção vale pela data da antecipação ou pela data das vendas que geraram os recebíveis?
+Ex: a AN88445172 ocorreu em 09/09, mas não traz referência nem data das vendas originais. Se ela antecipou recebíveis de agosto, a tarifa também fica zerada? Ou precisamos identificar essas vendas antes de calcular a comissão e a devolução?1 respostamanuel.freitas  [13h34]
+[Financeiro] Resposta para David
+Vale pela data da antecipação. A antecipação é um serviço que a gente presta no dia em que ela acontece: se foi em setembro, está dentro da isenção. Não precisa ir atrás das vendas de origem.
+— Helena
+
+Lucca Landeiro - Lucca Landeiro  [13h19]
+[Financeiro] Lucca Landeiro: sobre o 06_orbe_ajustes_tardios: (1) esse arquivo de ajustes tardios vem todo mês e sempre fecha junto com o mês dele, mesmo chegando depois do relatório? (2) Se um ajuste trouxer um id_transacao que já está no relatório principal (correção de uma linha), vale a linha do ajuste e a original sai? Em setembro não acontece; é para outubro não depender de adivinhação.
+1 respostamanuel.freitas  [13h34]
+[Financeiro] Resposta para Lucca Landeiro
+
+Vem quando a Orbe tem ajuste, não todo mês. Se chega antes de eu aprovar o fechamento, entra no mês do movimento, como agora. Se chegar depois da aprovação, entra no mês seguinte.
+Correção de uma linha com o mesmo id nunca aconteceu. Se acontecer, o critério é de vocês: deixem claro no HIPOTESES.md e mostrem a pendência para mim.
+— Helena
+

@@ -74,11 +74,19 @@
           <h2>Vamos começar?</h2>
           <p>Crie um fechamento, envie os arquivos do mês e confira os dados antes de executar.</p>
           <button class="button button-primary" type="button" data-create>
-            Criar fechamento <span aria-hidden="true">→</span>
+            Novo fechamento <span aria-hidden="true">→</span>
           </button>
         </section>
 
-        <section id="closure-view" hidden>
+        <div id="processing-status" class="processing-status" role="status" aria-live="polite" hidden>
+          <span class="spinner" aria-hidden="true"></span>
+          <div>
+            <strong id="processing-message"></strong>
+            <p>Aguarde a conclusão do processamento. Isso pode levar alguns instantes.</p>
+          </div>
+        </div>
+
+        <section id="closure-view" aria-busy="false" hidden>
           <section id="upload-panel" class="card upload-panel">
             <div class="section-heading">
               <div>
@@ -183,7 +191,12 @@
                 <p class="eyebrow">FECHAMENTO <span id="results-month"></span></p>
                 <h2>Resumo do mês</h2>
               </div>
-              <a class="button button-secondary" id="download-all" href="#" download>Baixar todas as saídas <span aria-hidden="true">↓</span></a>
+              <a class="button button-secondary" id="download-all" href="#" download>
+                Baixar todas as saídas
+                <svg class="download-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"></path>
+                </svg>
+              </a>
             </div>
             <div class="summary-grid" id="results-summary"></div>
             <section id="validation-queue" class="card queue-panel" hidden>
