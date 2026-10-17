@@ -164,6 +164,9 @@ h1 { margin-bottom: 7px; font-size: clamp(26px, 3vw, 32px); letter-spacing: -1.1
 .tab.active::after { position: absolute; right: 10px; bottom: -1px; left: 10px; height: 2px; background: var(--accent); content: ""; }
 .download-links { display: flex; gap: 7px; overflow-x: auto; padding: 10px 21px; border-bottom: 1px solid var(--line); }
 .download-link { flex: 0 0 auto; padding: 6px 8px; border: 1px solid var(--line); border-radius: 5px; color: #655f65; font-size: 9px; }
+.download-all { display: inline-flex; align-items: center; gap: 5px; border-color: var(--accent); background: var(--accent); color: white; font-weight: 650; }
+.download-all .download-icon { width: 12px; height: 12px; flex: none; }
+.download-all:hover { background: var(--accent-dark); border-color: var(--accent-dark); color: white; }
 .download-link:hover { border-color: #e9a2b4; color: var(--accent-dark); }
 .table-wrap { overflow: auto; max-height: 440px; }
 table { width: 100%; border-collapse: collapse; text-align: left; }
@@ -273,3 +276,22 @@ td.amount { text-align: right; font-variant-numeric: tabular-nums; }
 .file-name { white-space: normal; overflow-wrap: anywhere; }
 .file-clear { margin-top: 8px; padding: 2px 8px; border: 1px solid #d9d4d8; border-radius: 6px; background: #fff; color: var(--accent-dark); font-size: 10px; font-weight: 650; cursor: pointer; }
 .file-clear:hover { border-color: var(--accent); }
+
+/* Histórico */
+.view-history .workflow, .view-history #empty-state, .view-history #closure-view, .view-history .page-heading #new-closure { display: none; }
+.history-list { display: grid; gap: 12px; }
+.history-empty { padding: 40px 24px; color: var(--muted); font-size: 12px; text-align: center; }
+.history-item { padding: 16px 20px; }
+.history-item-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.history-month { margin: 0; font-size: 16px; letter-spacing: -.3px; }
+.history-meta { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
+.history-files { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 13px; }
+.history-actions { display: flex; align-items: center; gap: 10px; }
+.button-danger { background: #b3261e; color: white; }
+.button-danger:hover:not(:disabled) { background: #8f1d17; }
+.dialog-mark-danger { background: #fdecea; color: #b3261e; font-weight: 750; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.history-delete { color: #b3261e; }
+.history-delete:hover { border-color: #e6a8a4; background: #fdecea; }
+.history-delete { padding-inline: 10px; }
+.trash-icon { width: 16px; height: 16px; flex: none; }

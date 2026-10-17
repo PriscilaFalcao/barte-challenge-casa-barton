@@ -20,6 +20,9 @@
           <a class="nav-link active" href="#fechamentos" data-section="fechamentos" aria-current="page">
             <span class="nav-icon" aria-hidden="true">▦</span> Fechamentos
           </a>
+          <a class="nav-link" href="#historico" data-view="history">
+            <span class="nav-icon" aria-hidden="true">◷</span> Histórico
+          </a>
           <a class="nav-link" href="#validation-queue" data-section="validation-queue">
             <span class="nav-icon" aria-hidden="true">✓</span> Validações
           </a>
@@ -64,6 +67,16 @@
         </section>
 
         <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+
+        <section id="history-view" aria-label="Histórico de fechamentos" hidden>
+          <div class="results-heading">
+            <div>
+              <p class="eyebrow">HISTÓRICO</p>
+              <h2>Fechamentos anteriores</h2>
+            </div>
+          </div>
+          <div id="history-list" class="history-list" aria-live="polite"></div>
+        </section>
 
         <section id="empty-state" class="empty-state card">
           <div class="empty-art" aria-hidden="true">
@@ -205,12 +218,6 @@
                 <p class="eyebrow">FECHAMENTO <span id="results-month"></span></p>
                 <h2>Resumo do mês</h2>
               </div>
-              <a class="button button-secondary" id="download-all" href="#" download>
-                Baixar todas as saídas
-                <svg class="download-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"></path>
-                </svg>
-              </a>
             </div>
             <div class="summary-grid" id="results-summary"></div>
             <section id="validation-queue" class="card queue-panel" hidden>
@@ -289,6 +296,22 @@
       <div id="drawer-content" class="drawer-content"></div>
       <div class="drawer-footer"><span class="status-dot"></span> Dados calculados pelo motor Casa Barton</div>
     </aside>
+
+    <dialog id="delete-dialog" class="month-dialog">
+      <form method="dialog" id="delete-form">
+        <div class="dialog-heading">
+          <div class="dialog-mark dialog-mark-danger" aria-hidden="true">!</div>
+          <button class="icon-button" value="cancel" aria-label="Cancelar">×</button>
+        </div>
+        <p class="eyebrow">EXCLUIR FECHAMENTO</p>
+        <h2>Excluir <span id="delete-month"></span>?</h2>
+        <p>Isto apaga os arquivos enviados, as saídas, as decisões e o registro de fechamento deste mês. A ação não pode ser desfeita. Baixe o que precisar antes de excluir.</p>
+        <div class="dialog-actions">
+          <button class="button button-secondary" value="cancel">Cancelar</button>
+          <button class="button button-danger" id="delete-confirm" value="delete">Excluir fechamento</button>
+        </div>
+      </form>
+    </dialog>
 
     <dialog id="month-dialog" class="month-dialog">
       <form method="dialog" id="month-form">

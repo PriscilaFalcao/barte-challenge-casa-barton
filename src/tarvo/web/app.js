@@ -35,6 +35,7 @@ const downloadNames = {
   "pendencias.csv": "Pendências",
   "rastro.csv": "Rastro",
   "resumo.md": "Resumo",
+  "decisoes.csv": "Decisões",
   "execucao.log": "Log da execução",
 };
 
@@ -366,7 +367,12 @@ async function uploadBatch(fileList) {
 
 function renderDownloads() {
   const root = document.querySelector("#download-links");
-  root.replaceChildren(...Object.entries(downloadNames).map(([fileName, label]) => {
+  const all = document.createElement("a");
+  all.className = "download-link download-all";
+  all.href = `/api/closures/${state.closureId}/download/todos.zip`;
+  all.download = "todos.zip";
+  all.innerHTML = '<svg class="download-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"></path></svg>Baixar todas as saídas';
+  root.replaceChildren(all, ...Object.entries(downloadNames).map(([fileName, label]) => {
     const link = document.createElement("a");
     link.className = "download-link";
     link.href = `/api/closures/${state.closureId}/download/${fileName}`;
@@ -670,7 +676,6 @@ async function showCompletedClosure(result) {
   document.querySelector("#execution-panel").hidden = false;
   resultsPanel.hidden = false;
   document.querySelector("#results-month").textContent = formatMonth(result.month);
-  document.querySelector("#download-all").href = `/api/closures/${state.closureId}/download/todos.zip`;
   renderSummary(document.querySelector("#results-summary"), result.summary);
   renderDownloads();
   await Promise.all([loadActivity(), loadQueue()]);
@@ -960,6 +965,114 @@ document.querySelectorAll(".tab").forEach(tab => tab.addEventListener("click", (
 document.querySelector("#table-search").addEventListener("input", renderTable);
 document.querySelector("#close-drawer").addEventListener("click", closeDrawer);
 document.querySelector("#drawer-backdrop").addEventListener("click", closeDrawer);
+const mainContent = document.querySelector("#fechamentos");
+const historyView = document.querySelector("#history-view");
+const fileSizeLabel = bytes => bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1).replace(".", ",")} KB`;
+function leaveHistory() {
+  mainContent.classList.remove("view-history");
+  historyView.hidden = true;
+}
+function renderHistory(closures) {
+  const root = document.querySelector("#history-list");
+  if (!closures.length) {
+    const empty = document.createElement("p");
+    empty.className = "history-empty card";
+    empty.textContent = "Nenhum fechamento executado até agora. Os meses aparecem aqui depois da execução.";
+    root.replaceChildren(empty);
+    return;
+  }
+  root.replaceChildren(...closures.map(item => {
+    const card = document.createElement("article");
+    card.className = "card history-item";
+    const head = document.createElement("div");
+    head.className = "history-item-head";
+    const title = document.createElement("div");
+    const month = document.createElement("h3");
+    month.className = "history-month";
+    month.textContent = formatMonth(item.month);
+    const meta = document.createElement("p");
+    meta.className = "history-meta";
+    const when = new Date(item.executed_at);
+    const whenText = Number.isNaN(when.getTime()) ? "" : `Executado em ${when.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}`;
+    meta.textContent = item.closure_record
+      ? `${whenText} · Fechado por ${item.closure_record.closed_by}: ${item.closure_record.reason}`
+      : `${whenText} · Ainda não fechado`;
+    title.append(month, meta);
+    const actions = document.createElement("div");
+    actions.className = "history-actions";
+    const badge = document.createElement("span");
+    badge.className = `badge ${item.status === "closed" ? "badge-success" : "badge-running"}`;
+    badge.textContent = item.status === "closed" ? "Fechado" : "Em aberto";
+    const open = document.createElement("button");
+    open.type = "button";
+    open.className = "button button-secondary";
+    open.textContent = "Abrir fechamento";
+    open.addEventListener("click", async () => {
+      localStorage.setItem("tarvo.closureId", item.id);
+      leaveHistory();
+      setActiveNav(navLinkFor("fechamentos"));
+      await restoreSavedClosure();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "button button-secondary history-delete";
+    remove.title = "Excluir fechamento";
+    remove.innerHTML = '<svg class="trash-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2m-9 0 1 14h8l1-14M10 11v6m4-6v6"></path></svg>';
+    remove.setAttribute("aria-label", `Excluir fechamento ${formatMonth(item.month)}`);
+    remove.addEventListener("click", () => confirmDeleteClosure(item));
+    actions.append(badge, open, remove);
+    head.append(title, actions);
+    const files = document.createElement("div");
+    files.className = "history-files";
+    const all = document.createElement("a");
+    all.className = "download-link download-all";
+    all.href = `/api/closures/${item.id}/download/todos.zip`;
+    all.download = "todos.zip";
+    all.textContent = "↓ Baixar todos";
+    files.append(all, ...item.files.map(file => {
+      const link = document.createElement("a");
+      link.className = "download-link";
+      link.href = `/api/closures/${item.id}/download/${file.name}`;
+      link.download = file.name;
+      link.textContent = `↓ ${downloadNames[file.name] || file.name} · ${fileSizeLabel(file.size)}`;
+      return link;
+    }));
+    card.append(head, files);
+    return card;
+  }));
+}
+const deleteDialog = document.querySelector("#delete-dialog");
+function confirmDeleteClosure(item) {
+  document.querySelector("#delete-month").textContent = formatMonth(item.month);
+  deleteDialog.returnValue = "";
+  deleteDialog.onclose = async () => {
+    if (deleteDialog.returnValue !== "delete") return;
+    try {
+      await request(`/api/closures/${item.id}`, { method: "DELETE" });
+      if (localStorage.getItem("tarvo.closureId") === item.id) {
+        localStorage.removeItem("tarvo.closureId");
+        state.closureId = null;
+        closureView.hidden = true;
+        emptyState.hidden = false;
+      }
+      renderHistory((await request("/api/closures")).closures);
+    } catch (error) {
+      showNotice(error.message);
+    }
+  };
+  deleteDialog.showModal();
+}
+async function showHistory() {
+  mainContent.classList.add("view-history");
+  historyView.hidden = false;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  try {
+    renderHistory((await request("/api/closures")).closures);
+  } catch (error) {
+    showNotice(error.message);
+  }
+}
 const navLinks = [...document.querySelectorAll(".main-nav .nav-link")];
 function setActiveNav(link) {
   navLinks.forEach(item => {
@@ -972,7 +1085,7 @@ function setActiveNav(link) {
 const navLinkFor = id => navLinks.find(item => item.dataset.section === id);
 let navLockUntil = 0;
 function syncNavWithScroll() {
-  if (Date.now() < navLockUntil) return;
+  if (Date.now() < navLockUntil || mainContent.classList.contains("view-history")) return;
   const line = window.innerHeight * 0.4;
   const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
   let current = "fechamentos";
@@ -989,7 +1102,21 @@ window.addEventListener("resize", syncNavWithScroll);
 navLinks.forEach(link => link.addEventListener("click", event => {
   event.preventDefault();
   const id = link.dataset.section;
+  if (link.dataset.view === "history") {
+    notice.hidden = true;
+    setActiveNav(link);
+    showHistory();
+    return;
+  }
+  if (id !== "fechamentos" && mainContent.classList.contains("view-history")) {
+    if (closureView.hidden) {
+      showNotice("Abra ou conclua um fechamento para acessar esta seção.", false);
+      return;
+    }
+    leaveHistory();
+  }
   if (id === "fechamentos") {
+    leaveHistory();
     notice.hidden = true;
     setActiveNav(link);
     navLockUntil = Date.now() + 800;

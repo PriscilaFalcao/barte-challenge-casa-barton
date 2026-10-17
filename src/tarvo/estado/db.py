@@ -140,6 +140,11 @@ class Estado:
         rows = self.con.execute("SELECT * FROM decisoes WHERE mes = ? AND ativa = 1 ORDER BY id", (mes,))
         return [{**dict(r), "payload": json.loads(r["payload"])} for r in rows]
 
+    def historico_decisoes(self, mes: str) -> list[dict]:
+        """Todas as decisões do mês, ativas ou substituídas, em ordem de registro."""
+        rows = self.con.execute("SELECT * FROM decisoes WHERE mes = ? ORDER BY id", (mes,))
+        return [{**dict(r), "payload": json.loads(r["payload"])} for r in rows]
+
     def promover_regra(self, tipo: str, payload: dict, autor: str, motivo: str, decisao_id: int | None) -> int:
         cur = self.con.execute(
             "INSERT INTO regras (tipo, payload, autor, motivo, criada_em, decisao_id) VALUES (?, ?, ?, ?, ?, ?)",

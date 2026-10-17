@@ -6,6 +6,7 @@ import hashlib
 import io
 import json
 import re
+import shutil
 import threading
 import time
 import uuid
@@ -70,7 +71,9 @@ _TABLES = {
     "pendencias": "pendencias.csv",
     "rastro": "rastro.csv",
 }
-_DOWNLOADS = (*_TABLES.values(), "resumo.md", "execucao.log")
+_DECISIONS_FILE = "decisoes.csv"
+_DECISION_COLUMNS = ("id", "id_saida", "tipo_decisao", "escopo", "ativa", "decidido_por", "motivo", "decidido_em", "payload")
+_DOWNLOADS = (*_TABLES.values(), "resumo.md", "execucao.log", _DECISIONS_FILE)
 _RUNNING: set[str] = set()
 _RUNNING_LOCK = threading.Lock()
 
@@ -174,6 +177,26 @@ def _format_brl(value: Decimal) -> str:
     return f"R$ {value:,.2f}".replace(",", "\0").replace(".", ",").replace("\0", ".")
 
 
+def _write_decisions(closure_dir: Path, state: dict) -> None:
+    """Grava saida/decisoes.csv com o histórico de decisões da fila (ativas e substituídas)."""
+    db = Estado(closure_dir / "estado")
+    try:
+        decisions = db.historico_decisoes(state["month"])
+    finally:
+        db.fechar()
+    output_dir = closure_dir / "saida"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    with (output_dir / _DECISIONS_FILE).open("w", encoding="utf-8-sig", newline="") as target:
+        writer = csv.writer(target, delimiter=";")
+        writer.writerow(_DECISION_COLUMNS)
+        for row in decisions:
+            writer.writerow([
+                json.dumps(row[col], ensure_ascii=False, sort_keys=True) if col == "payload"
+                else ("S" if row[col] else "N") if col == "ativa" else row[col]
+                for col in _DECISION_COLUMNS
+            ])
+
+
 def _summary(output_dir: Path) -> dict:
     commissions = _read_csv(output_dir / _TABLES["comissoes"])
     divergences = _read_csv(output_dir / _TABLES["divergencias"])
@@ -272,6 +295,35 @@ def _response_state(closure_dir: Path, state: dict) -> dict:
     return response
 
 
+def _history() -> list[dict]:
+    """Fechamentos com saídas geradas (concluídos ou fechados), do mês mais recente ao mais antigo."""
+    items = []
+    for state_path in (_DATA_ROOT / "fechamentos").glob("*/state.json"):
+        try:
+            closure_dir, state = _load_state(state_path.parent.name)
+        except (FileNotFoundError, ValueError, OSError):
+            continue
+        if state.get("status") not in {"completed", "closed"}:
+            continue
+        output_dir = closure_dir / "saida"
+        files = [
+            {"name": name, "size": (output_dir / name).stat().st_size}
+            for name in _DOWNLOADS if (output_dir / name).is_file()
+        ]
+        record = state.get("closure_record")
+        items.append({
+            "id": state["id"],
+            "month": state["month"],
+            "status": state["status"],
+            "executed_at": state.get("started_at") or datetime.fromtimestamp(
+                state_path.stat().st_mtime).isoformat(timespec="seconds"),
+            "closure_record": {k: record[k] for k in ("closed_by", "reason", "closed_at")} if record else None,
+            "files": files,
+        })
+    items.sort(key=lambda item: (item["month"], item["executed_at"]), reverse=True)
+    return items
+
+
 class _Handler(BaseHTTPRequestHandler):
     server_version = "TarvoWeb/1.0"
 
@@ -284,6 +336,9 @@ class _Handler(BaseHTTPRequestHandler):
             file_name = request.path.lstrip("/")
             content_type = "text/css; charset=utf-8" if file_name.endswith(".css") else "text/javascript; charset=utf-8"
             self._static(file_name, content_type)
+            return
+        if request.path == "/api/closures":
+            self._json({"closures": _history()})
             return
         match = re.fullmatch(r"/api/closures/([0-9a-f-]{36})", request.path)
         if match:
@@ -321,11 +376,31 @@ class _Handler(BaseHTTPRequestHandler):
     def do_DELETE(self) -> None:
         request = urlsplit(self.path)
         slots = "|".join(_SLOTS)
+        match = re.fullmatch(r"/api/closures/([0-9a-f-]{36})", request.path)
+        if match:
+            self._delete_closure(match.group(1))
+            return
         match = re.fullmatch(rf"/api/closures/([0-9a-f-]{{36}})/files/({slots})", request.path)
         if match is None:
             self._json({"error": "Endereço não encontrado."}, 404)
             return
         self._remove_file(match.group(1), match.group(2), parse_qs(request.query).get("name", [None])[0])
+
+    def _delete_closure(self, closure_id: str) -> None:
+        try:
+            closure_dir, state = _load_state(closure_id)
+        except FileNotFoundError as exc:
+            self._json({"error": str(exc)}, 404)
+            return
+        with _RUNNING_LOCK:
+            if state["id"] in _RUNNING or state["status"] == "running":
+                self._json({"error": "O fechamento está em execução. Aguarde a conclusão para excluir."}, 409)
+                return
+            shutil.rmtree(closure_dir, ignore_errors=True)
+        if closure_dir.exists():
+            self._json({"error": "Não foi possível excluir todos os arquivos do fechamento."}, 500)
+            return
+        self._json({"deleted": state["id"]})
 
     def _remove_file(self, closure_id: str, slot: str, name: str | None) -> None:
         try:
@@ -824,6 +899,7 @@ class _Handler(BaseHTTPRequestHandler):
                 "blocking_count": len(blockers),
             }, 409)
             return
+        _write_decisions(closure_dir, state)
         hashes = {
             name: hashlib.sha256((closure_dir / "saida" / name).read_bytes()).hexdigest()
             for name in _DOWNLOADS
@@ -915,6 +991,10 @@ class _Handler(BaseHTTPRequestHandler):
         if state["status"] not in {"completed", "closed"}:
             self._json({"error": "Os arquivos ficam disponíveis depois da execução."}, 409)
             return
+        if name in {"todos.zip", _DECISIONS_FILE} and (
+            state["status"] == "completed" or not (closure_dir / "saida" / _DECISIONS_FILE).exists()
+        ):
+            _write_decisions(closure_dir, state)
         if name == "todos.zip":
             archive_path = closure_dir / "saida" / "todos.zip"
             with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:

@@ -107,7 +107,7 @@ Nesse caso, acesse [http://127.0.0.1:8766](http://127.0.0.1:8766).
 5. Clique em **Executar fechamento**. Acompanhe etapas, checkpoints e atividade dos agentes. Durante uma chamada, aparece uma animação com o nome do agente e o identificador do item analisado.
 6. Consulte as tabelas e abra uma linha para ver o rastro de origem.
 7. Na seção **Validações**, registre as decisões com autor e motivo. As decisões suportadas podem disparar uma reexecução.
-8. Baixe as saídas individualmente ou em ZIP. O fechamento final só é permitido quando não há pendências bloqueantes; ficam registrados autor, justificativa e hashes SHA-256 das saídas.
+8. Baixe as saídas individualmente ou em ZIP (o botão **Baixar todas as saídas** é o primeiro da faixa de downloads). O fechamento final só é permitido quando não há pendências bloqueantes; ficam registrados autor, justificativa e hashes SHA-256 das saídas.
 
 ### Como os uploads são identificados
 
@@ -187,6 +187,16 @@ Também existem decisões de conta contábil e vínculo EC–CNPJ, além de prom
 
 O parâmetro `--estado` permite escolher outra pasta nos comandos do terminal. Para operar sobre um fechamento criado pela interface, é necessário apontar para o estado daquele fechamento, e não para o estado padrão do terminal.
 
+### Histórico de fechamentos
+
+A aba **Histórico** do menu lateral lista todos os fechamentos já executados, do mês mais recente ao mais antigo. Cada cartão mostra a competência, a data da execução, se o mês está **Fechado** (com autor e justificativa) ou **Em aberto**, e os arquivos de saída daquele fechamento, cada um com link de download e tamanho, além de **Baixar todos** (ZIP). **Abrir fechamento** carrega aquele mês de volta na tela principal, com tabelas, rastro e fila.
+
+- Só aparecem fechamentos que já têm saídas (execução concluída ou competência fechada). Fechamentos ainda em envio de arquivos ou em pré-validação não entram.
+- Se um mês foi executado mais de uma vez em fechamentos diferentes, cada um aparece como um cartão próprio.
+- A lista vem de `GET /api/closures`, que lê `data\web\fechamentos\<id>\state.json` e a pasta `saida`; nada é copiado ou duplicado. Os downloads usam o mesmo endpoint das saídas do fechamento atual.
+- **Excluir** remove o fechamento por completo (arquivos enviados, saídas, decisões e registro de fechamento, em `data\web\fechamentos\<id>`), via `DELETE /api/closures/<id>`. Um popup de confirmação avisa que a ação não pode ser desfeita. Fechamento em execução não pode ser excluído (retorna 409). Se o fechamento excluído estava aberto na tela principal, ela volta ao estado inicial.
+- Disponível apenas na interface; a execução pelo terminal não cria histórico.
+
 ## 6. Saídas e rastreabilidade
 
 As saídas do data pack estão em [saida](saida). Uma nova execução pelo terminal usa `--saida`; pela interface, os arquivos ficam isolados em `data\web\fechamentos\<id>\saida` e podem ser baixados pela tela.
@@ -201,6 +211,8 @@ As saídas do data pack estão em [saida](saida). Uma nova execução pelo termi
 | [rastro.csv](saida/rastro.csv) | `id_saida;arquivo_origem;ref_origem;valor` |
 
 Formato: UTF-8, separador `;`, ponto decimal, datas `AAAA-MM-DD` e CNPJ com 14 dígitos. Há colunas extras de auditoria. `linha_negocio` usa `CHECKOUT` ou `REMESSA`; `banco`, `AURORA` ou `MERIDIANO`; `metodo`, `REGRA`, `IA` ou `HUMANO`; a confiança vai de 0 a 1.
+
+Pela interface há ainda o `decisoes.csv` (separador `;`, UTF-8), que registra o histórico da fila de validações: `id;id_saida;tipo_decisao;escopo;ativa;decidido_por;motivo;decidido_em;payload`. Entram as decisões ativas e as substituídas (`ativa` = `S` ou `N`), e o `payload` é o conteúdo da decisão em JSON. O arquivo é regenerado a cada download até o fechamento da competência; ao fechar, é gravado e seu hash SHA-256 entra no registro de fechamento. Fechamentos fechados antes dessa mudança recebem o arquivo no primeiro download, sem hash no registro. Ele não existe na execução pelo terminal, que não tem fila de decisões.
 
 O `rastro.csv` liga o `id_saida` ao arquivo e à referência de origem: `id_transacao` na Orbe, número da operação na Ponte, linha física `L...` no Aurora e FITID no Meridiano. Os validadores conferem a reconciliação dos valores em decimal exato. Consulte também o [resumo](saida/resumo.md) e o [log da execução](saida/execucao.log), que registra contagens e descartes.
 

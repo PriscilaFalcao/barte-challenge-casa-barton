@@ -170,6 +170,20 @@ def test_web_end_to_end_events_decisions_and_close_gate(dados, web_server):
     status, table = _http_json(f"{web_server}/api/closures/{closure_id}/tables/pendencias")
     assert status == 200 and len(table["rows"]) == 18
 
+    status, history = _http_json(f"{web_server}/api/closures")
+    assert status == 200
+    entry = next(item for item in history["closures"] if item["id"] == closure_id)
+    assert entry["month"] == "2026-09" and entry["status"] == "closed"
+    assert entry["closure_record"]["closed_by"] == "Analista"
+    assert {"pendencias.csv", "decisoes.csv", "resumo.md"} <= {file["name"] for file in entry["files"]}
+
+    status, deleted = _http_json(f"{web_server}/api/closures/{closure_id}", method="DELETE")
+    assert status == 200 and deleted["deleted"] == closure_id
+    status, _ = _http_json(f"{web_server}/api/closures/{closure_id}")
+    assert status == 404
+    status, history = _http_json(f"{web_server}/api/closures")
+    assert all(item["id"] != closure_id for item in history["closures"])
+
 
 def test_web_campo_aceita_varios_arquivos_e_o_orbe_junta_relatorio_e_ajustes(dados, web_server):
     status, closure = _http_json(f"{web_server}/api/closures", {"month": "2026-09"})
