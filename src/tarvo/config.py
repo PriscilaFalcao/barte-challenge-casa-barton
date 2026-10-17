@@ -1,4 +1,7 @@
-"""Defaults de fábrica (config/defaults.yaml). Em operação, as regras vivem no banco (B8)."""
+"""Defaults de fábrica (config/defaults.yaml) mais as regras promovidas por decisão humana (estado, B8).
+
+`ler_yaml` devolve o dicionário bruto (usado também no fingerprint das etapas); `construir_config` monta o
+Config tipado; `mesclar_promovidas` aplica as regras que uma pessoa promoveu pela fila de validação."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -51,6 +54,14 @@ class AlertaLancamento:
 
 
 @dataclass(frozen=True)
+class ConfigAgentes:
+    rotas: dict[TipoExcecao, str] = field(default_factory=dict)  # tipo de exceção -> agente
+    limiar: dict[str, Decimal] = field(default_factory=dict)  # agente -> confiança mínima para aplicar
+    max_chamadas_llm: int = 60
+    modelos: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class Config:
     ecs_extra: dict[str, str] = field(default_factory=dict)
     sem_contrato: dict[str, str] = field(default_factory=dict)
@@ -61,6 +72,7 @@ class Config:
     alertas_lancamento: tuple[AlertaLancamento, ...] = ()
     quem_decide: dict[TipoExcecao, str] = field(default_factory=dict)
     bloqueantes: frozenset[TipoExcecao] = frozenset()
+    agentes: ConfigAgentes = field(default_factory=ConfigAgentes)
 
 
 def _override(o: dict) -> OverrideTaxa:
@@ -95,8 +107,33 @@ def _alerta(a: dict) -> AlertaLancamento:
                             valor=Decimal(str(a["valor"])), tipo=TipoExcecao(a["tipo"]), motivo=a["motivo"])
 
 
-def carregar_defaults(path: Path = DEFAULTS_PATH) -> Config:
-    dados = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+def _agentes(a: dict) -> ConfigAgentes:
+    return ConfigAgentes(
+        rotas={TipoExcecao(k): str(v) for k, v in (a.get("rotas") or {}).items()},
+        limiar={str(k): Decimal(str(v)) for k, v in (a.get("limiar") or {}).items()},
+        max_chamadas_llm=int(a.get("max_chamadas_llm", 60)),
+        modelos={str(k): str(v) for k, v in (a.get("modelos") or {}).items()},
+    )
+
+
+def ler_yaml(path: Path = DEFAULTS_PATH) -> dict:
+    return yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+
+
+def mesclar_promovidas(dados: dict, promovidas: list[dict]) -> dict:
+    """Regra promovida por uma pessoa vale sobre o default. Padrão de descrição entra NA FRENTE das regras
+    de fábrica (o que o humano ensinou é mais específico); EC novo entra em ecs_extra."""
+    dados = {**dados}
+    regras = [p["payload"] for p in promovidas if p["tipo"] == "PADRAO_CONTA"]
+    if regras:
+        dados["regras_lancamento"] = regras + list(dados.get("regras_lancamento") or [])
+    ecs = {p["payload"]["ec"]: p["payload"]["cnpj"] for p in promovidas if p["tipo"] == "EC_LOJISTA"}
+    if ecs:
+        dados["ecs_extra"] = {**(dados.get("ecs_extra") or {}), **ecs}
+    return dados
+
+
+def construir_config(dados: dict) -> Config:
     return Config(
         ecs_extra={str(k): str(v) for k, v in (dados.get("ecs_extra") or {}).items()},
         sem_contrato={str(k): str(v) for k, v in (dados.get("sem_contrato") or {}).items()},
@@ -107,4 +144,9 @@ def carregar_defaults(path: Path = DEFAULTS_PATH) -> Config:
         alertas_lancamento=tuple(_alerta(a) for a in dados.get("alertas_lancamento") or []),
         quem_decide={TipoExcecao(k): str(v) for k, v in (dados.get("quem_decide") or {}).items()},
         bloqueantes=frozenset(TipoExcecao(t) for t in dados.get("bloqueantes") or []),
+        agentes=_agentes(dados.get("agentes") or {}),
     )
+
+
+def carregar_defaults(path: Path = DEFAULTS_PATH) -> Config:
+    return construir_config(ler_yaml(path))

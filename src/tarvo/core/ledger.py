@@ -16,6 +16,13 @@ class Ledger:
         if ref is not None:
             self._itens[(fonte, motivo)].append(ref)
 
+    def juntar(self, outro: "Ledger") -> None:
+        """Soma o que outra etapa descartou (cada etapa tem o seu ledger, para poder ser reaproveitada)."""
+        for chave, n in outro._contagem.items():
+            self._contagem[chave] += n
+        for chave, refs in outro._itens.items():
+            self._itens[chave].extend(refs)
+
     def contar(self, fonte: str, motivo: str) -> int:
         return self._contagem[(fonte, motivo)]
 

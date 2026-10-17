@@ -41,6 +41,13 @@ class Rastro:
             LinhaRastro(id_saida, arquivo_origem, ref_origem, valor, componente, taxa_usada_pct, regra_id)
         )
 
+    @classmethod
+    def de(cls, linhas) -> "Rastro":
+        r = cls()
+        for l in linhas:
+            r.add(l.id_saida, l.arquivo_origem, l.ref_origem, l.valor, l.componente, l.taxa_usada_pct, l.regra_id)
+        return r
+
     def soma(self, id_saida: str) -> Decimal:
         return sum((l.valor for l in self._linhas if l.id_saida == id_saida), Decimal("0"))
 

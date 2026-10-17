@@ -2,7 +2,7 @@
 name = "tarvo"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = ["openpyxl", "pyyaml"]
+dependencies = ["openpyxl", "pyyaml", "anthropic>=1.15"]
 
 [project.optional-dependencies]
 dev = ["pytest"]

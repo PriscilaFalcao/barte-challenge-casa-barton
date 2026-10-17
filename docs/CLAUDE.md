@@ -11,7 +11,7 @@ A one-day hackathon submission (Barte AI Services, "Case Tarvo", 16–17 Oct 202
 
 Full brief: `01_instrucoes_participantes.docx` (Portuguese). Data pack description: `dados/00_LEIA-ME.md`. All data is synthetic.
 
-Implementation status (blocks per `docs/PRD.md` section 11): B0 to B7 are done (core, ingestion of all 6 files, merchant registry, rate resolver, checkout, remessa, divergences, notes, bank classification by rule, pendências with owner/blocking from config, I-R2, `saida/resumo.md`). Agents/state (B8, B11) and the web UI (B9, B10) are not built yet. Finance answers up to 17/10 11h03 are reflected in `docs/PRD.md` 12.1.
+Implementation status (blocks per `docs/PRD.md` section 11): B0 to B8 and B11 are done (orchestrator + Classificador/InterpreteTaxas/Investigador with cache in `cache/agentes/`, SQLite state in `data/` with queue, decisions, promoted rules, events and per-stage checkpoints; core, ingestion of all 6 files, merchant registry, rate resolver, checkout, remessa, divergences, notes, bank classification by rule, pendências with owner/blocking from config, I-R2, `saida/resumo.md`). The web UI (B9, B10) and B12 docs are not built yet. Finance answers up to 17/10 11h03 are reflected in `docs/PRD.md` 12.1.
 
 **All code lives under `src/`**, tests (`src/tests/`) and helper scripts (`src/scripts/`) included. Python 3.11+ (a `.venv` with 3.13 is used locally).
 
@@ -19,7 +19,10 @@ Implementation status (blocks per `docs/PRD.md` section 11): B0 to B7 are done (
 .venv/bin/pip install -e .                       # once
 .venv/bin/pytest                                  # whole suite (pytest runs src/tests)
 .venv/bin/python -m tarvo fechar --mes 2026-09    # reads dados/, writes saida/ (+ execucao.log)
+.venv/bin/python -m tarvo fila --mes 2026-09       # validation queue (state in data/ or $TARVO_ESTADO)
+.venv/bin/python -m tarvo decidir --mes 2026-09 --id PEN-... --por Helena --motivo "..." --conta 4.2.06
 .venv/bin/python src/scripts/inspecionar_b1.py    # manual inspection of ingestion + rate resolver
+# API key: copy .env.example to .env (git-ignored) and fill ANTHROPIC_API_KEY. No key (or TARVO_SEM_IA=1) and no cache hit = no-AI mode: every exception stays in the human queue.
 ```
 
 Nothing is dropped silently: structural skips (footer rows, ignored sheet, out-of-month lines) are counted in `saida/execucao.log`; rows that look like data but are not recognized raise `LayoutError`; an empty month fails instead of writing empty outputs.

@@ -60,6 +60,19 @@ def _ref(p: dict, nomes: dict[str, str]) -> str:
     return f"{nomes[cnpj]} ({p['ref_origem']})" if cnpj in nomes else p["ref_origem"]
 
 
+def _motivo(p: dict) -> str:
+    """Motivo determinístico, mais o que o agente propôs e o que uma pessoa já decidiu, quando houver."""
+    partes = [p["motivo"]]
+    ia = " ".join(x for x in (p.get("proposta_ia"), p.get("hipoteses_ia")) if x)
+    if ia:
+        partes.append(f"**IA (não decide):** {ia}")
+    if p.get("pergunta_sugerida"):
+        partes.append(f"**Pergunta sugerida:** {p['pergunta_sugerida']}")
+    if p.get("decisao"):
+        partes.append(f"**Decisão:** {p['decisao']}")
+    return " ".join(partes)
+
+
 def gerar_resumo(mes: str, comissoes: list[dict], divergencias: list[dict], notas: list[dict],
                  lancamentos: list[dict], pendencias: list[dict], plano: dict, validacoes: str) -> str:
     mm, aaaa = mes[5:], mes[:4]
@@ -106,7 +119,7 @@ def gerar_resumo(mes: str, comissoes: list[dict], divergencias: list[dict], nota
         out += [f"### {pessoa} ({len(ps)})", ""]
         out += _tabela(["", "Tipo", "Referência", "Valor", "Motivo"],
                        [["**bloqueante**" if p["bloqueante"] == "S" else "", ROTULO.get(T(p["tipo"]), p["tipo"]),
-                         _ref(p, nomes), brl(p["valor_brl"]), p["motivo"]]
+                         _ref(p, nomes), brl(p["valor_brl"]), _motivo(p)]
                         for p in sorted(ps, key=lambda p: (p["bloqueante"] != "S", p["tipo"], p["ref_origem"]))])
         out += [""]
 

@@ -129,3 +129,22 @@ quem_decide:
   STATUS_PONTE_DESCONHECIDO: Helena
 
 bloqueantes: [ENTIDADE_NAO_RESOLVIDA, CONTRATO_AMBIGUO, STATUS_PONTE_DESCONHECIDO]
+
+# ---------------------------------------------------------------------------------------------------------
+# Agentes (PRD 8). O orquestrador é código: só roteia por tipo de exceção. Agente não calcula dinheiro (P2).
+# Sem credencial da API e sem resposta em cache/agentes/, toda exceção fica na fila humana (modo sem IA).
+agentes:
+  rotas:
+    CLASSIFICACAO_BAIXA_CONFIANCA: classificador
+    CONTRATO_AMBIGUO: interprete_taxas
+    REPASSE_ATIPICO: investigador
+    LANCAMENTO_SEM_ORIGEM: investigador
+    DEVOLUCAO_PIX: investigador
+    ALERTA_ANTECIPACAO: investigador
+  limiar:
+    classificador: "0.8"     # abaixo disso a proposta vai para a pessoa decidir (PRD 7.7)
+  max_chamadas_llm: 60       # teto de chamadas novas por execução (custo e proteção contra loop)
+  modelos:
+    classificador: claude-haiku-4-5
+    interprete_taxas: claude-sonnet-5-5
+    investigador: claude-sonnet-5-5

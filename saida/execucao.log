@@ -12,6 +12,8 @@ Aurora: 1 linha(s) ignorada(s) (rodapé ou linha sem dado); ex.: L95
 Aurora: 2 linha(s) ignorada(s) (saldo anterior ou final); ex.: L8, L94
 Ponte: 2 linha(s) ignorada(s) (rodapé ou linha sem dado); ex.: L240, L241
 Taxas: 1 linha(s) ignorada(s) (rodapé ou linha sem dado); ex.: Taxas!L32
+agentes: 4 exceção(ões) roteada(s), 4 com resposta, 0 aplicada(s)
+decisões humanas aplicadas: 0; regras promovidas ativas: 0
 validação: I-R1, I-R2, I-R3, I-D1, I-N1, I-C1 ok
 comissoes_por_lojista: 35 linha(s)
 divergencias_taxa: 233 linha(s)

@@ -33,6 +33,7 @@ REGRA_PIX_LOJISTA = "MER-PIX-LOJISTA"
 REGRA_TRANSF_SAIDA = "AUR-TRANSF-MER"
 REGRA_TRANSF_ENTRADA = "MER-TED-TARVO"
 SEM_REGRA = "SEM-REGRA"
+DECISAO = "DECISAO-HUMANA"
 UM, ZERO = Decimal("1.00"), Decimal("0.00")
 
 
@@ -73,9 +74,15 @@ def _fmt_motivo(modelo: str, l: Lancamento) -> str:
 def classificar_lancamentos(
     lancamentos: list[Lancamento], plano: dict[str, Conta], regras: tuple[RegraLancamento, ...],
     conta_provisoria: dict[str, str], alertas: tuple[AlertaLancamento, ...], ops_ponte: list[OpPonte],
-    mes: str, rastro: Rastro, ledger: Ledger | None = None,
+    mes: str, rastro: Rastro, ledger: Ledger | None = None, decisoes_conta: dict[str, str] | None = None,
 ) -> ResultadoBancos:
+    """`decisoes_conta`: ref_origem -> conta decidida por uma pessoa na fila (escopo "só neste caso"). Vale sobre
+    a regra: metodo HUMANO, confiança 1, sem pendência de classificação (PRD 8.4, passo 3)."""
+    decisoes_conta = decisoes_conta or {}
     _validar_contas(plano, regras, conta_provisoria)
+    for ref, conta in decisoes_conta.items():
+        if conta not in plano or not plano[conta].analitica:
+            raise LayoutError(f"decisão para {ref}: conta {conta} não existe no plano ou não aceita lançamento")
     res = ResultadoBancos()
 
     def pendencia(tipo: TipoExcecao, l: Lancamento, motivo: str, regra_id: str) -> None:
@@ -101,7 +108,11 @@ def classificar_lancamentos(
     for l in do_mes:
         regra = _regra_de(l, regras)
         classificados.append((l, regra))
-        if regra is None:
+        if l.ref_origem in decisoes_conta:
+            conta, metodo, confianca, regra_id = decisoes_conta[l.ref_origem], "HUMANO", UM, DECISAO
+            if regra is not None and regra.pendencia_tipo is not None:  # a decisão é da conta, não do motivo
+                pendencia(regra.pendencia_tipo, l, _fmt_motivo(regra.pendencia_motivo, l), regra.id)
+        elif regra is None:
             conta = conta_provisoria["credito" if l.valor > 0 else "debito"]
             metodo, confianca, regra_id = "HUMANO", ZERO, SEM_REGRA
             pendencia(TipoExcecao.CLASSIFICACAO_BAIXA_CONFIANCA, l,

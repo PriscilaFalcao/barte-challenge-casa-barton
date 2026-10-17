@@ -122,7 +122,7 @@ Versão 3 (respostas do financeiro de 17/10 até 11h03, seção 12.1; B6 impleme
 | Planilhas | `openpyxl` (leitura) | Lê a aba por nome e o cabeçalho por texto. |
 | E-mail | `email` (stdlib) | Extrai o anexo base64 do `.eml`. |
 | OFX | parser próprio (regex sobre SGML) | As tags não fecham, e `ofxparse` costuma falhar nesse formato. |
-| Agentes | SDK da Anthropic, saída estruturada (JSON validado por schema) | Controle total do contrato de entrada e saída. Haiku 5.5 para classificação, Sonnet 5.5 para casos de interpretação. |
+| Agentes | SDK da Anthropic, saída estruturada (JSON validado por schema) | Controle total do contrato de entrada e saída. Haiku 4.5 (`claude-haiku-4-5`) para classificação, Sonnet 5.5 (`claude-sonnet-5-5`) para interpretação e investigação. Não existe "Haiku 5.5": a v2 deste PRD citava um modelo inexistente. |
 | Testes | `pytest` | Seção 10. |
 | Estado e configuração | SQLite | Regras versionadas, fila, decisões, eventos e auditoria num arquivo só, sem servidor. |
 | API | FastAPI | Mesma base Python do motor. Eventos ao vivo por SSE. |
@@ -403,23 +403,23 @@ O agente só é chamado quando um motor devolve uma **exceção do tipo "não se
 Contrato comum: entrada JSON mínima (só o que o agente precisa, sem o arquivo inteiro), saída JSON validada por schema, `temperature=0`, cache por hash da entrada em `cache/agentes/`.
 
 **`Classificador`** (classificação bancária sem regra)
-- Entrada: `{banco, data, descricao, valor, candidatos: [{codigo, descricao}]}`. Os candidatos são só contas analíticas (`ACEITA_LANCTO=S`) pré-filtradas por sinal do valor e por palavra-chave, no máximo 8.
+- Entrada: `{banco, data, descricao, valor, candidatos: [{codigo, descricao}]}`. Os candidatos são só contas analíticas (`ACEITA_LANCTO=S`) pré-filtradas por sinal do valor (entrada não vai para despesa, saída não vai para receita) e ordenadas por palavra em comum com a descrição e, no empate, pela natureza provável do sinal. No máximo 12, sempre com a conta provisória, para o agente poder dizer "não sei". Eram 8: com descrição sem palavra em comum, os 8 primeiros códigos não incluíam a conta certa (achado no teste).
 - Saída: `{conta_codigo, confianca, justificativa}`.
 - Guardrail em código: `conta_codigo` tem que estar em `candidatos`. Fora da lista, descarta e abre pendência.
-- Modelo: Haiku 5.5.
+- Modelo: Haiku 4.5, com `temperature=0` (vai por `extra_body`, porque o SDK 1.x tirou o parâmetro da assinatura e o modelo ainda o aceita).
 
 **`InterpreteTaxas`** (texto livre da planilha)
 - Entrada: `{lojista, obs, vigencia_texto, linhas_vizinhas}`.
 - Saída: `{vigencia_ini, vigencia_fim, taxas_afetadas, confianca, trecho_que_justifica}` ou `{ambiguo: true, pergunta}`.
 - **Nunca aplica sozinho.** O resultado entra como decisão proposta na fila (8.4), e só passa a valer depois da confirmação humana. Motivo: é regra de contrato, e erro aqui contamina comissão e divergência.
-- Modelo: Sonnet 5.5.
+- Modelo: Sonnet 5.5, com o fallback de recusa do servidor ligado (`fallbacks: "default"`). Esse modelo não aceita `temperature` diferente do padrão, então a reprodutibilidade vem do cache por hash.
 
 **`Investigador`** (anomalias sem regra)
 - Entrada: a exceção mais um pacote de evidências montado **por código** (movimentos do lojista nas três fontes na janela de datas, saldos).
 - Saída: `{hipoteses: [{descricao, evidencia_refs[], plausibilidade}], pergunta_sugerida, quem_decide_sugerido}`.
 - Guardrail: toda `evidencia_ref` tem que existir na tabela canônica. Não produz valor em R$. A saída preenche `motivo` e `pergunta_sugerida` da pendência.
 - Casos de hoje: R$ 18.240 Ponte Aérea, R$ 112.220,15 Atlas, devolução R$ 12.400.
-- Modelo: Sonnet 5.5.
+- Modelo: Sonnet 5.5, com o fallback de recusa do servidor ligado (`fallbacks: "default"`). Esse modelo não aceita `temperature` diferente do padrão, então a reprodutibilidade vem do cache por hash.
 
 ### 8.3 Orquestrador
 
@@ -448,6 +448,23 @@ for exc in fila_excecoes:
 4. Efeito composto: a cada fechamento, menos exceções, pois o que o humano ensinou vira regra determinística. É a resposta direta a "se eu sair de férias, o mês não fecha".
 
 Toda pergunta nova segue a lista de perguntas já feitas em `perguntas_slack.md` para não repetir pergunta que outro time fez e foi respondida (a banca publica as respostas no canal).
+
+### 8.4.1 Como está implementado (B8 e B11)
+
+| Peça | Onde | O que faz |
+|---|---|---|
+| Orquestrador | `agents/orquestrador.py` | Código, sem LLM. Percorre as exceções em ordem fixa (`id_saida`), consulta a rota por tipo (`agentes.rotas` no `defaults.yaml`), monta a entrada, chama o agente, aplica o guardrail e o limiar, e respeita `max_chamadas_llm`. |
+| Agentes | `agents/classificador.py`, `interprete_taxas.py`, `investigador.py` e `prompts/*.md` | Entrada mínima montada por código, saída por JSON Schema (`output_config.format`) e validação em código. |
+| Cache | `cache/agentes/<agente>/<hash>.json`, **versionado no git** | Hash de agente + modelo + prompt + schema + entrada. Quando há cache, ele responde sem chave de API, e a banca reproduz o resultado entregue. Mudar o prompt, o modelo ou a entrada muda o hash. |
+| Modo sem IA | `agents/base.py` | Sem credencial (ou com `TARVO_SEM_IA=1`) e sem cache, o agente devolve "sem resposta" e a exceção fica na fila. A saída continua completa e é idêntica à de um fechamento sem agentes. Erro de API nunca derruba o fechamento. |
+| Classificador aplicado | `lancamentos_classificados.csv` | Confiança ≥ 0,8 e conta entre as candidatas: `metodo=IA`, confiança do agente, `regra_id=IA-CLASSIFICADOR`, e a pendência sai (do CSV e do rastro). Abaixo disso, a pendência fica, com a sugestão na coluna `proposta_ia`. |
+| InterpreteTaxas | coluna `proposta_ia` | Nunca aplica. O guardrail exige datas válidas e que o trecho citado exista literalmente na planilha. |
+| Investigador | colunas `hipoteses_ia` e `pergunta_sugerida` | Não muda o `motivo` (decisão do time em 17/10), então a parte avaliada da saída não depende da IA. Hipótese que cita ref fora do pacote de evidências é descartada. |
+| Estado | `estado/db.py`, `data/tarvo.db` (fora do git) | Execuções, eventos por etapa, fila (`AGUARDANDO_HUMANO`, `AGENTE_PROPOS`, `DECIDIDA`, `RESOLVIDA`), decisões com autor e motivo, regras promovidas e o log das chamadas de agente. |
+| Checkpoint | `estado/checkpoint.py`, `data/execucoes/<mes>/<etapa>.pkl` | Ingestão, checkout, divergências, remessa, notas e bancos gravam o resultado com um fingerprint: código da solução + hash dos arquivos + trecho de configuração usado + decisões aplicadas + fingerprints das etapas anteriores. Fingerprint igual reaproveita; diferente recalcula. Não há mapa de invalidação mantido à mão, então um resultado velho não é reaproveitado por engano. Agentes e consolidação rodam sempre. |
+| Canal de decisão até a interface | `python -m tarvo fila` e `python -m tarvo decidir` | Decisão de conta (`--conta`, escopo caso ou regra com `--padrao`), EC → CNPJ (`--ec --cnpj`, sempre regra) e decisão sem efeito no cálculo (`--nota`, aparece na coluna `decisao`). Toda decisão exige autor e motivo. `python -m tarvo regras --desativar ID` reverte uma regra promovida. |
+
+Efeito medido do checkpoint em setembro: uma decisão de conta recalcula só `bancos`; um EC novo recalcula checkout, divergências, remessa e notas e reaproveita ingestão e bancos; uma decisão `--nota` não recalcula nenhuma etapa de cálculo.
 
 ### 8.5 Ciclo de vida de uma exceção
 
@@ -524,7 +541,8 @@ Os números abaixo já foram conferidos à mão contra os dados (`HIPOTESES.md`,
 | Propriedade | permutar a ordem das linhas de entrada não altera as saídas |
 | Sem IA | com chave de API ausente, as 6 saídas ainda são geradas e válidas |
 | Paridade interface × CLI | rodar o mesmo mês pela interface e pela CLI gera `saida/` idêntica |
-| Reprocessamento parcial | uma decisão de classificação reexecuta só as etapas 7 e 9; as demais permanecem com o mesmo checkpoint |
+| Reprocessamento parcial | ✅ (`test_b8.py`) uma decisão de conta reexecuta só `bancos` (mais agentes e consolidação, que rodam sempre); EC novo reexecuta checkout, divergências, remessa e notas; as demais etapas reaproveitam o checkpoint |
+| Modo sem IA | ✅ (`test_agentes.py`) sem cliente e sem cache, as saídas são byte a byte iguais às de um fechamento sem estado; erro de API não derruba o fechamento |
 | Upload | cada um dos 6 arquivos do data pack é aceito no seu formato (15.3); arquivo no campo errado, extensão inesperada e coluna ausente geram mensagem clara, sem rodar |
 | Configurações | alterar uma regra gera nova versão com autor, motivo e valor anterior; a simulação não grava nada; reverter restaura o resultado anterior |
 | Download | os arquivos baixados são byte a byte iguais aos de `saida/` |
@@ -780,7 +798,7 @@ Para o hackathon, a identificação é uma seleção simples de usuário, sem se
 | `GET/PUT /config/{secao}` e `POST /config/simular` | regras versionadas e simulação de impacto |
 | `GET /fechamentos/{id}/saidas/{nome}` e `.../download` | consulta e download |
 
-**Reprocessamento parcial.** Cada etapa persiste seu resultado em `data/execucoes/<id>/`. Existe um mapa fixo de dependências, por exemplo: decisão de classificação → refaz as etapas 7 e 9; override de taxa → refaz 3, 5, 6 e 9; alias de lojista → refaz 2 em diante. Isso evita rodar tudo de novo a cada resposta e mantém o resultado reproduzível (P8).
+**Reprocessamento parcial.** Cada etapa persiste seu resultado em `data/execucoes/<mes>/`. Em vez de um mapa fixo de dependências, cada etapa tem um fingerprint de tudo o que lê (8.4.1): decisão de classificação refaz só `bancos`; override de taxa ou EC refaz checkout, divergências, remessa e notas. Isso evita rodar tudo de novo a cada resposta e mantém o resultado reproduzível (P8).
 
 ### 15.11 Prioridade e linha de corte da interface
 
