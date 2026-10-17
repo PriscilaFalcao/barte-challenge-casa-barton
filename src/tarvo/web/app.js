@@ -17,6 +17,7 @@ const labels = {
   notas: { title: "Notas", columns: ["tomador", "linha_negocio", "valor_brl"], download: "notas_a_emitir.csv" },
   lancamentos: { title: "Extratos classificados", columns: ["banco", "data", "descricao", "valor", "conta_codigo", "metodo"], download: "lancamentos_classificados.csv" },
   pendencias: { title: "Pendências", columns: ["tipo", "ref_origem", "quem_decide", "valor_brl"], download: "pendencias.csv" },
+  contestacoes: { title: "Contestações", document: true, download: "rascunhos_contestacao.md" },
   rastro: { title: "Rastro", columns: ["arquivo_origem", "ref_origem", "valor", "componente", "regra_id"], download: "rastro.csv" },
 };
 const columnLabels = {
@@ -35,6 +36,7 @@ const downloadNames = {
   "pendencias.csv": "Pendências",
   "rastro.csv": "Rastro",
   "resumo.md": "Resumo",
+  "rascunhos_contestacao.md": "Rascunhos de contestação",
   "decisoes.csv": "Decisões",
   "execucao.log": "Log da execução",
 };
@@ -173,6 +175,120 @@ function renderTable() {
     `${filtered.length.toLocaleString("pt-BR")} registro(s)${filtered.length > 100 ? " · exibindo os 100 primeiros" : ""}`;
 }
 
+// Aba de texto (rascunhos de contestação): mostra o documento no lugar da tabela, sem busca nem rodapé.
+function setDocumentMode(on) {
+  document.querySelector(".table-wrap").hidden = on;
+  document.querySelector("#table-footer").hidden = on;
+  document.querySelector(".search-box").hidden = on;
+  document.querySelector(".trace-hint").hidden = on;
+  document.querySelector("#document-view").hidden = !on;
+}
+
+// Texto com **negrito** e `código`, montado com textContent (nada de innerHTML).
+function appendInline(target, text) {
+  for (const part of text.split(/(\*\*[^*]+\*\*|`[^`]+`)/)) {
+    if (!part) continue;
+    if (part.startsWith("**")) {
+      const strong = document.createElement("strong");
+      strong.textContent = part.slice(2, -2);
+      target.append(strong);
+    } else if (part.startsWith("`")) {
+      const code = document.createElement("code");
+      code.textContent = part.slice(1, -1);
+      target.append(code);
+    } else {
+      target.append(document.createTextNode(part));
+    }
+  }
+}
+
+function renderMarkdown(text) {
+  const fragment = document.createDocumentFragment();
+  const lines = text.split("\n");
+  const cells = line => line.trim().replace(/^\||\|$/g, "").split("|").map(cell => cell.trim());
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (!line.trim()) continue;
+    const heading = line.match(/^(#{1,3}) (.*)$/);
+    if (heading) {
+      const element = document.createElement(`h${heading[1].length}`);
+      appendInline(element, heading[2]);
+      fragment.append(element);
+    } else if (line.startsWith(">")) {
+      const quote = document.createElement("blockquote");
+      appendInline(quote, line.replace(/^>\s?/, ""));
+      fragment.append(quote);
+    } else if (line.startsWith("|")) {
+      const block = [];
+      while (i < lines.length && lines[i].startsWith("|")) { block.push(lines[i]); i += 1; }
+      i -= 1;
+      const table = document.createElement("table");
+      const head = document.createElement("thead");
+      const headRow = document.createElement("tr");
+      for (const cell of cells(block[0])) {
+        const th = document.createElement("th");
+        th.scope = "col";
+        appendInline(th, cell);
+        headRow.append(th);
+      }
+      head.append(headRow);
+      const body = document.createElement("tbody");
+      for (const row of block.slice(2)) {
+        const tr = document.createElement("tr");
+        for (const cell of cells(row)) {
+          const td = document.createElement("td");
+          appendInline(td, cell);
+          tr.append(td);
+        }
+        body.append(tr);
+      }
+      table.append(head, body);
+      const wrap = document.createElement("div");
+      wrap.className = "document-table-wrap";
+      wrap.append(table);
+      fragment.append(wrap);
+    } else if (line.startsWith("- ")) {
+      const list = document.createElement("ul");
+      while (i < lines.length && lines[i].startsWith("- ")) {
+        const item = document.createElement("li");
+        appendInline(item, lines[i].slice(2));
+        list.append(item);
+        i += 1;
+      }
+      i -= 1;
+      fragment.append(list);
+    } else {
+      const paragraph = document.createElement("p");
+      const parts = [line];
+      while (i + 1 < lines.length && lines[i + 1].trim() && /^\*\*(Para|De):/.test(lines[i + 1])) { parts.push(lines[i + 1]); i += 1; }
+      parts.forEach((part, index) => { if (index) paragraph.append(document.createElement("br")); appendInline(paragraph, part); });
+      fragment.append(paragraph);
+    }
+  }
+  return fragment;
+}
+
+function renderDocument(text) {
+  const root = document.querySelector("#document-view");
+  const actions = document.createElement("div");
+  actions.className = "document-actions";
+  const copy = document.createElement("button");
+  copy.type = "button";
+  copy.className = "button button-secondary";
+  copy.textContent = "Copiar texto";
+  copy.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      copy.textContent = "Texto copiado";
+    } catch {
+      copy.textContent = "Não foi possível copiar";
+    }
+    setTimeout(() => { copy.textContent = "Copiar texto"; }, 2000);
+  });
+  actions.append(copy);
+  root.replaceChildren(actions, renderMarkdown(text));
+}
+
 async function selectTable(table) {
   state.table = table;
   document.querySelectorAll(".tab").forEach(tab => {
@@ -181,7 +297,13 @@ async function selectTable(table) {
     tab.setAttribute("aria-selected", String(active));
   });
   document.querySelector("#table-search").value = "";
+  setDocumentMode(Boolean(labels[table].document));
   try {
+    if (labels[table].document) {
+      const result = await request(`/api/closures/${state.closureId}/documents/${table}`);
+      renderDocument(result.text);
+      return;
+    }
     const result = await request(`/api/closures/${state.closureId}/tables/${table}`);
     state.rows = result.rows;
     renderTable();

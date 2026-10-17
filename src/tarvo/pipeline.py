@@ -42,6 +42,7 @@ from .ingest.orbe import Substituicao, ler_orbe, unir_orbe
 from .ingest.plano_contas import ler_planos
 from .ingest.ponte import ler_ponte
 from .ingest.taxas import ler_taxas
+from .output.contestacoes import gerar_rascunhos
 from .output.resumo import gerar_resumo
 from .output.validators import validar_i_c1, validar_i_d1, validar_i_n1, validar_i_r1, validar_i_r2, validar_i_r3
 from .output.writers import escrever_csv, escrever_rastro
@@ -399,6 +400,9 @@ def _fechar(mes, dados, saida, db, execucao_id, ck, cliente, cache, historico=No
     escrever_csv(saida / "lancamentos_classificados.csv", "lancamentos_classificados", lancamentos)
     escrever_csv(saida / "pendencias.csv", "pendencias", pendencias)
     escrever_rastro(saida / "rastro.csv", rastro)
+    (saida / "rascunhos_contestacao.md").write_text(
+        gerar_rascunhos(mes, pendencias, rastro.linhas(), ing.ops, ing.txs + historicas, divergencias,
+                        {c["cnpj"]: c["lojista"] for c in comissoes}), encoding="utf-8")
     (saida / "resumo.md").write_text(
         gerar_resumo(mes, comissoes, divergencias, notas, lancamentos, pendencias, ing.plano, validacoes),
         encoding="utf-8")

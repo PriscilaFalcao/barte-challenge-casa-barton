@@ -245,6 +245,8 @@ As saídas do data pack estão em [saida](saida). Uma nova execução pelo termi
 | [pendencias.csv](saida/pendencias.csv) | `id_saida;tipo;ref_origem;valor_brl;motivo;quem_decide` |
 | [rastro.csv](saida/rastro.csv) | `id_saida;arquivo_origem;ref_origem;valor` |
 
+Além dos seis CSVs, o fechamento gera dois arquivos de apoio: [resumo.md](saida/resumo.md) e [rascunhos_contestacao.md](saida/rascunhos_contestacao.md), com um texto pronto por contraparte (Ponte Câmbio e Orbe), com as operações, as taxas e os valores de cada pendência de contestação, para o Financeiro revisar e enviar. A solução não envia nada; a Casa do Estudante (devolução ao lojista) e o lojista sem contrato aparecem só como "fora das contestações".
+
 Formato: UTF-8, separador `;`, ponto decimal, datas `AAAA-MM-DD` e CNPJ com 14 dígitos. Há colunas extras de auditoria. `linha_negocio` usa `CHECKOUT` ou `REMESSA`; `banco`, `AURORA` ou `MERIDIANO`; `metodo`, `REGRA`, `IA` ou `HUMANO`; a confiança vai de 0 a 1.
 
 Pela interface há ainda o `decisoes.csv` (separador `;`, UTF-8), que registra o histórico da fila de validações: `id;id_saida;tipo_decisao;escopo;ativa;decidido_por;motivo;decidido_em;payload`. Entram as decisões ativas e as substituídas (`ativa` = `S` ou `N`), e o `payload` é o conteúdo da decisão em JSON. O arquivo é regenerado a cada download até o fechamento da competência; ao fechar, é gravado e seu hash SHA-256 entra no registro de fechamento. Fechamentos fechados antes dessa mudança recebem o arquivo no primeiro download, sem hash no registro. Ele não existe na execução pelo terminal, que não tem fila de decisões.
@@ -288,6 +290,7 @@ Os testes de agentes usam clientes falsos, sem precisar de chave ou API. Se tive
 
 ```powershell
 node .\src\tests\test_upload_identification.cjs
+node .\src\tests\test_renderizador_markdown.cjs
 ```
 
 ## 9. Limitações conhecidas

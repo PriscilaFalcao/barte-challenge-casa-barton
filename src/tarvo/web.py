@@ -72,9 +72,10 @@ _TABLES = {
     "pendencias": "pendencias.csv",
     "rastro": "rastro.csv",
 }
+_DOCUMENTS = {"contestacoes": "rascunhos_contestacao.md"}  # textos exibidos em abas, ao lado das tabelas
 _DECISIONS_FILE = "decisoes.csv"
 _DECISION_COLUMNS = ("id", "id_saida", "tipo_decisao", "escopo", "ativa", "decidido_por", "motivo", "decidido_em", "payload")
-_DOWNLOADS = (*_TABLES.values(), "resumo.md", "execucao.log", _DECISIONS_FILE)
+_DOWNLOADS = (*_TABLES.values(), "resumo.md", "rascunhos_contestacao.md", "execucao.log", _DECISIONS_FILE)
 _RUNNING: set[str] = set()
 _RUNNING_LOCK = threading.Lock()
 
@@ -366,6 +367,10 @@ class _Handler(BaseHTTPRequestHandler):
         match = re.fullmatch(rf"/api/closures/([0-9a-f-]{{36}})/tables/({table_names})", request.path)
         if match:
             self._get_table(match.group(1), match.group(2))
+            return
+        match = re.fullmatch(rf"/api/closures/([0-9a-f-]{{36}})/documents/({'|'.join(_DOCUMENTS)})", request.path)
+        if match:
+            self._get_document(match.group(1), match.group(2))
             return
         match = re.fullmatch(r"/api/closures/([0-9a-f-]{36})/trace", request.path)
         if match:
@@ -947,6 +952,22 @@ class _Handler(BaseHTTPRequestHandler):
             self._json({"error": f"Não foi possível abrir a saída: {exc}"}, 500)
             return
         self._json({"rows": rows})
+
+    def _get_document(self, closure_id: str, document: str) -> None:
+        try:
+            closure_dir, state = _load_state(closure_id)
+        except FileNotFoundError as exc:
+            self._json({"error": str(exc)}, 404)
+            return
+        if state["status"] not in {"completed", "closed"}:
+            self._json({"error": "As saídas aparecem depois da execução do fechamento."}, 409)
+            return
+        try:
+            text = (closure_dir / "saida" / _DOCUMENTS[document]).read_text(encoding="utf-8")
+        except OSError as exc:
+            self._json({"error": f"Não foi possível abrir o documento: {exc}"}, 500)
+            return
+        self._json({"text": text})
 
     def _get_trace(self, closure_id: str, query: dict[str, list[str]]) -> None:
         try:

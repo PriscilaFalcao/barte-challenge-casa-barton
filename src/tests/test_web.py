@@ -171,13 +171,17 @@ def test_web_end_to_end_events_decisions_and_close_gate(dados, web_server):
     assert closed["closure_record"]["files_sha256"]["pendencias.csv"] == hashlib.sha256(original_pending).hexdigest()
     status, table = _http_json(f"{web_server}/api/closures/{closure_id}/tables/pendencias")
     assert status == 200 and len(table["rows"]) == 17
+    status, document = _http_json(f"{web_server}/api/closures/{closure_id}/documents/contestacoes")
+    assert status == 200 and "Rascunho, não enviado" in document["text"] and "R$ 1.576,23" in document["text"]
+    status, _ = _http_json(f"{web_server}/api/closures/{closure_id}/documents/inexistente")
+    assert status == 404
 
     status, history = _http_json(f"{web_server}/api/closures")
     assert status == 200
     entry = next(item for item in history["closures"] if item["id"] == closure_id)
     assert entry["month"] == "2026-09" and entry["status"] == "closed"
     assert entry["closure_record"]["closed_by"] == "Analista"
-    assert {"pendencias.csv", "decisoes.csv", "resumo.md"} <= {file["name"] for file in entry["files"]}
+    assert {"pendencias.csv", "decisoes.csv", "resumo.md", "rascunhos_contestacao.md"} <= {file["name"] for file in entry["files"]}
 
     status, deleted = _http_json(f"{web_server}/api/closures/{closure_id}", method="DELETE")
     assert status == 200 and deleted["deleted"] == closure_id
